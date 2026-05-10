@@ -1,0 +1,29 @@
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# 数据库文件
+server/prisma/dev.db
+server/prisma/dev.db-journal
+server/prisma/dev.db-shm
+server/prisma/dev.db-wal
+
+# 环境变量（含密钥，不提交）
+server/.env
+.env
+
+# 构建产物
+dist/
+client/dist/
+server/dist/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+npm-debug.log*
+
+server/prisma/prisma/*.db
+server/prisma/prisma/*.db-*
