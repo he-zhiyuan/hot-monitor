@@ -1,63 +1,88 @@
 /**
- * OpenRouter AI 接入层
- * 使用 openai SDK 兼容模式（OpenRouter 官方文档认可的用法）
- * https://openrouter.ai/docs/quickstart#using-the-openai-sdk
+ * AI 接入层：优先使用 EasyRouter，降级到 OpenRouter
+ * EasyRouter 文档：https://docs.easyrouter.io
+ * OpenRouter 文档：https://openrouter.ai/docs/quickstart
  */
 import OpenAI from 'openai'
 
-const client = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY || 'placeholder',
-  baseURL: 'https://openrouter.ai/api/v1',
-  defaultHeaders: {
-    'HTTP-Referer': 'http://localhost:3001',
-    'X-OpenRouter-Title': 'HotMonitor', // 正确的 Header 名（文档要求）
-  },
-})
+// EasyRouter 客户端（OpenAI 兼容格式，稳定可用）
+const easyRouterClient = process.env.EASYROUTER_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.EASYROUTER_API_KEY,
+      baseURL: 'https://easyrouter.io/v1',
+    })
+  : null
 
-// 模型降级链
-const MODEL_FALLBACKS: string[] = process.env.OPENROUTER_MODEL
-  ? [process.env.OPENROUTER_MODEL]
-  : [
-      'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-      'baidu/cobuddy:free',
-      'google/gemma-4-31b-it:free',
-      'google/gemini-2.5-flash', // 付费，余额充足时更稳定
-    ]
+// OpenRouter 客户端（备用）
+const openrouterClient = process.env.OPENROUTER_API_KEY
+  ? new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      defaultHeaders: {
+        'HTTP-Referer': 'http://localhost:3001',
+        'X-Title': 'HotMonitor',
+      },
+    })
+  : null
 
-async function chatWithFallback(
-  messages: OpenAI.ChatCompletionMessageParam[]
-): Promise<string> {
-  for (const model of MODEL_FALLBACKS) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const res = await client.chat.completions.create({
-          model,
-          messages,
-          temperature: 0.1,
-          max_tokens: 512,
-        })
-        const content = res.choices[0]?.message?.content || ''
-        if (content) {
-          console.log(`[OpenRouter] OK with model: ${model}`)
-          return content
-        }
-      } catch (err: any) {
-        const status = err?.status ?? err?.statusCode
-        if (status === 401 || status === 403) {
-          console.warn(`[OpenRouter] model ${model} auth error (${status}), skipping`)
-          break
-        }
-        if (status === 429) {
-          console.warn(`[OpenRouter] model ${model} rate limited, waiting 15s...`)
-          await new Promise(r => setTimeout(r, 15000))
-          continue
-        }
-        console.warn(`[OpenRouter] model ${model} failed (${status}), trying next...`)
-        break
+type Message = { role: 'system' | 'user' | 'assistant'; content: string }
+
+async function tryClient(
+  client: OpenAI,
+  model: string,
+  messages: Message[],
+  label: string
+): Promise<string | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await client.chat.completions.create({
+        model, messages, temperature: 0.1, max_tokens: 512,
+      })
+      const content = res.choices[0]?.message?.content || ''
+      if (content) {
+        console.log(`[AI] OK via ${label}/${model}`)
+        return content
       }
+    } catch (err: any) {
+      const status = err?.status
+      if (status === 429) {
+        console.warn(`[AI] ${label}/${model} rate limited, waiting 10s...`)
+        await new Promise(r => setTimeout(r, 10000))
+        continue
+      }
+      console.warn(`[AI] ${label}/${model} failed (${status})`)
+      break
     }
   }
-  throw new Error('All models failed')
+  return null
+}
+
+async function chatWithFallback(messages: Message[]): Promise<string> {
+  // 1. EasyRouter 优先（稳定、兼容 OpenAI 格式，无 TLS 限制）
+  if (easyRouterClient) {
+    const models = process.env.EASYROUTER_MODEL
+      ? [process.env.EASYROUTER_MODEL]
+      : ['MiniMax-M2.5']
+
+    for (const model of models) {
+      const result = await tryClient(easyRouterClient, model, messages, 'EasyRouter')
+      if (result) return result
+    }
+  }
+
+  // 2. OpenRouter 降级
+  if (openrouterClient) {
+    const models = process.env.OPENROUTER_MODEL
+      ? [process.env.OPENROUTER_MODEL]
+      : ['google/gemma-4-31b-it:free', 'google/gemini-2.5-flash']
+
+    for (const model of models) {
+      const result = await tryClient(openrouterClient, model, messages, 'OpenRouter')
+      if (result) return result
+    }
+  }
+
+  throw new Error('All AI models failed — please configure EASYROUTER_API_KEY in .env')
 }
 
 export interface AIVerifyResult {
@@ -86,8 +111,8 @@ export async function verifyContent(
   title: string,
   content: string
 ): Promise<AIVerifyResult> {
-  if (!process.env.OPENROUTER_API_KEY) {
-    return { isReal: false, relevance: 0.5, summary: title.slice(0, 30), reason: '未配置 API Key' }
+  if (!easyRouterClient && !openrouterClient) {
+    return { isReal: false, relevance: 0.5, summary: title.slice(0, 30), reason: '未配置 AI Key' }
   }
 
   if (!localRelevanceCheck(keyword, title, content)) {
@@ -117,7 +142,7 @@ export async function verifyContent(
     if (!match) throw new Error('No JSON found in response')
     return JSON.parse(match[0]) as AIVerifyResult
   } catch (err) {
-    console.error('[OpenRouter] verifyContent error:', (err as any)?.message || err)
+    console.error('[AI] verifyContent error:', (err as any)?.message || err)
     return { isReal: false, relevance: 0, summary: '', reason: 'AI 分析失败' }
   }
 }
@@ -127,7 +152,7 @@ export async function scoreHotspots(
   items: Array<{ id: string; title: string; content: string }>
 ): Promise<AIHeatResult[]> {
   if (items.length === 0) return []
-  if (!process.env.OPENROUTER_API_KEY) {
+  if (!easyRouterClient && !openrouterClient) {
     return items.map(i => ({ id: i.id, score: 5, summary: i.title.slice(0, 15) }))
   }
 
@@ -157,12 +182,12 @@ export async function scoreHotspots(
       const match = cleaned.match(/\[[\s\S]*\]/)
       if (match) results.push(...(JSON.parse(match[0]) as AIHeatResult[]))
     } catch (err) {
-      console.error('[OpenRouter] scoreHotspots error:', (err as any)?.message)
+      console.error('[AI] scoreHotspots error:', (err as any)?.message)
       results.push(...batch.map(b => ({ id: b.id, score: 5, summary: b.title.slice(0, 15) })))
     }
 
     if (i + batchSize < items.length) {
-      await new Promise(r => setTimeout(r, 3000))
+      await new Promise(r => setTimeout(r, 1000))
     }
   }
 

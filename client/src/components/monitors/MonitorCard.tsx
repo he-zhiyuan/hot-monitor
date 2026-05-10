@@ -1,4 +1,5 @@
-import { Pause, Play, Trash2, Radar, Zap, Clock, FileSearch } from 'lucide-react'
+import { Pause, Play, Trash2, Radar, Zap, Clock, FileSearch, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import type { Monitor } from '../../types'
 import Badge from '../ui/Badge'
 import api from '../../lib/api'
@@ -28,6 +29,7 @@ function timeAgo(dateStr?: string) {
 }
 
 export default function MonitorCard({ monitor, onRefresh, onClick }: Props) {
+  const [scanning, setScanning] = useState(false)
   const lastFinding = monitor.findings?.[0]
 
   const toggleActive = async (e: React.MouseEvent) => {
@@ -45,8 +47,14 @@ export default function MonitorCard({ monitor, onRefresh, onClick }: Props) {
 
   const handleScan = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    await api.post(`/monitors/${monitor.id}/scan`)
-    onRefresh()
+    if (scanning) return
+    setScanning(true)
+    try {
+      await api.post(`/monitors/${monitor.id}/scan`)
+      onRefresh()
+    } finally {
+      setScanning(false)
+    }
   }
 
   return (
@@ -127,10 +135,14 @@ export default function MonitorCard({ monitor, onRefresh, onClick }: Props) {
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handleScan}
-            className="px-2.5 py-1.5 rounded-lg text-xs text-cyan-400 hover:bg-cyan-500/10 transition-colors flex items-center gap-1"
+            disabled={scanning}
+            className="px-2.5 py-1.5 rounded-lg text-xs text-cyan-400 hover:bg-cyan-500/10 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             title="立即扫描"
           >
-            <Zap size={12} /> 立即扫描
+            {scanning
+              ? <><Loader2 size={12} className="animate-spin" /> 扫描中...</>
+              : <><Zap size={12} /> 立即扫描</>
+            }
           </button>
           <button
             onClick={toggleActive}
