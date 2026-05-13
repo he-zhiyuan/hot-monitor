@@ -1,6 +1,6 @@
 interface BadgeProps {
   children: React.ReactNode
-  variant?: 'cyan' | 'green' | 'amber' | 'red' | 'purple' | 'gray' | 'ghost'
+  variant?: 'cyan' | 'green' | 'amber' | 'red' | 'purple' | 'blue' | 'gray' | 'ghost'
   size?: 'sm' | 'md'
 }
 
@@ -10,6 +10,7 @@ const styles: Record<string, string> = {
   amber:  'bg-amber-500/10  text-amber-400   border-amber-500/20',
   red:    'bg-red-500/10    text-red-400     border-red-500/25',
   purple: 'bg-violet-500/10 text-violet-400  border-violet-500/20',
+  blue:   'bg-blue-500/10   text-blue-400    border-blue-500/20',
   gray:   'bg-white/5       text-slate-500   border-white/8',
   ghost:  'bg-transparent   text-slate-600   border-white/6',
 }

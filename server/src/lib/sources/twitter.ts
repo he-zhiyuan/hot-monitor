@@ -26,14 +26,14 @@ export async function searchTwitter(query: string, hoursBack = 6): Promise<Twitt
   }
 
   try {
-    // 使用 since_time 控制时间范围，避免分页问题
     const sinceTime = Math.floor(Date.now() / 1000) - hoursBack * 3600
     const untilTime = Math.floor(Date.now() / 1000)
 
+    // -is:reply 过滤纯回复，min_faves:10 过滤低质量内容
     const res = await axios.get(`${TWITTER_API}/twitter/tweet/advanced_search`, {
       headers: getHeaders(),
       params: {
-        query: `${query} since_time:${sinceTime} until_time:${untilTime}`,
+        query: `${query} -is:reply min_faves:10 since_time:${sinceTime} until_time:${untilTime}`,
         queryType: 'Latest',
       },
       timeout: 15000,
@@ -41,7 +41,14 @@ export async function searchTwitter(query: string, hoursBack = 6): Promise<Twitt
 
     const tweets = res.data.tweets || []
     return tweets
-      .filter((t: any) => t.text && !t.retweeted_tweet)
+      .filter((t: any) => {
+        if (!t.text || t.retweeted_tweet) return false
+        // 过滤以 @ 开头的回复型推文（API 有时不准确）
+        if (t.text.trimStart().startsWith('@')) return false
+        // 本地二次过滤：综合互动数须 >= 5
+        const engagement = (t.likeCount || 0) + (t.retweetCount || 0) * 2
+        return engagement >= 5
+      })
       .map((t: any) => ({
         title: `@${t.author?.userName}: ${t.text.slice(0, 100)}`,
         url: t.url || `https://x.com/${t.author?.userName}/status/${t.id}`,

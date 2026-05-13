@@ -15,12 +15,18 @@ const sourceLabel: Record<string, string> = {
   hackernews: 'Hacker News',
   github:     'GitHub',
   web:        'Web',
+  reddit:     'Reddit',
+  devto:      'Dev.to',
+  googlenews: 'Google News',
 }
-const sourceBadge: Record<string, 'cyan' | 'amber' | 'green' | 'gray'> = {
+const sourceBadge: Record<string, 'cyan' | 'amber' | 'green' | 'gray' | 'red' | 'purple' | 'blue'> = {
   twitter:    'cyan',
   hackernews: 'amber',
   github:     'green',
   web:        'gray',
+  reddit:     'red',
+  devto:      'purple',
+  googlenews: 'blue',
 }
 
 function timeAgo(dateStr?: string) {
