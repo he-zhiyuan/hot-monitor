@@ -3,7 +3,6 @@ import { TrendingUp, RefreshCw, CheckCheck, Bookmark } from 'lucide-react'
 import TopBar from '../components/layout/TopBar'
 import HotspotCard from '../components/hotspots/HotspotCard'
 import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
 import { get, post } from '../lib/api'
 import type { HotSpot } from '../types'
 
@@ -76,28 +75,28 @@ export default function Hotspots() {
 
       <div className="p-8 space-y-5">
         {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Domain filter */}
           <select
             value={domain}
             onChange={e => setDomain(e.target.value)}
-            className="px-3 py-2 rounded-lg text-sm text-slate-300 border outline-none"
-            style={{ background: 'rgba(13,18,32,0.98)', borderColor: 'rgba(255,255,255,0.1)' }}
+            className="px-3 py-2 rounded-lg text-xs text-slate-300 border outline-none focus:border-cyan-500/40 transition-all font-mono"
+            style={{ background: 'rgba(8,12,22,0.95)', borderColor: 'rgba(255,255,255,0.09)' }}
           >
-            <option value="">全部领域</option>
+            <option value="">ALL DOMAINS</option>
             {domains.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
 
           {/* Sort */}
-          <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {SORT_OPTIONS.map(o => (
               <button
                 key={o.value}
                 onClick={() => setSort(o.value)}
-                className="px-3 py-2 text-xs transition-colors"
+                className="px-3 py-2 text-[11px] font-mono transition-all"
                 style={{
-                  background: sort === o.value ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.02)',
-                  color: sort === o.value ? '#a78bfa' : '#64748b',
+                  background: sort === o.value ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.02)',
+                  color: sort === o.value ? '#22d3ee' : '#475569',
                 }}
               >
                 {o.label}
@@ -106,19 +105,19 @@ export default function Hotspots() {
           </div>
 
           {/* Read filter */}
-          <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             {(['all', 'unread', 'saved'] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className="px-3 py-2 text-xs transition-colors flex items-center gap-1"
+                className="px-3 py-2 text-[11px] font-mono transition-all flex items-center gap-1"
                 style={{
-                  background: filter === f ? 'rgba(124,58,237,0.2)' : 'rgba(255,255,255,0.02)',
-                  color: filter === f ? '#a78bfa' : '#64748b',
+                  background: filter === f ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.02)',
+                  color: filter === f ? '#22d3ee' : '#475569',
                 }}
               >
-                {f === 'saved' && <Bookmark size={11} />}
-                {f === 'all' ? '全部' : f === 'unread' ? '未读' : '收藏'}
+                {f === 'saved' && <Bookmark size={10} />}
+                {f === 'all' ? 'ALL' : f === 'unread' ? 'UNREAD' : 'SAVED'}
               </button>
             ))}
           </div>
@@ -126,22 +125,26 @@ export default function Hotspots() {
 
         {/* Grid */}
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+          <div className="grid grid-cols-2 gap-3">
+            {Array(6).fill(0).map((_, i) => (
+              <div key={i} className="shimmer rounded-xl h-36" />
+            ))}
           </div>
         ) : hotspots.length === 0 ? (
-          <Card className="p-16 text-center">
-            <TrendingUp size={40} className="text-slate-700 mx-auto mb-4" />
-            <p className="text-slate-400 font-medium">暂无热点数据</p>
-            <p className="text-slate-600 text-sm mt-1 mb-6">点击刷新或等待系统自动发现</p>
+          <div className="rounded-xl border p-14 text-center"
+            style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}
+          >
+            <TrendingUp size={32} className="text-slate-700 mx-auto mb-3" />
+            <p className="text-slate-400 font-medium mb-1">暂无热点数据</p>
+            <p className="text-slate-700 text-xs mb-6 font-mono">点击刷新或等待系统自动发现</p>
             <Button variant="primary" loading={refreshing} onClick={handleRefresh}>
-              <RefreshCw size={14} /> 立即发现热点
+              <RefreshCw size={13} /> 立即发现热点
             </Button>
-          </Card>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {hotspots.map(h => (
-              <HotspotCard key={h.id} hotspot={h} onRefresh={load} />
+            {hotspots.map((h, i) => (
+              <HotspotCard key={h.id} hotspot={h} onRefresh={load} index={i} />
             ))}
           </div>
         )}

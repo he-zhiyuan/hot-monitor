@@ -23,9 +23,9 @@ function AppContent() {
   useSocket(handleNotification)
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#080c14' }}>
+    <div className="flex min-h-screen" style={{ background: '#030712' }}>
       <Sidebar />
-      <main className="flex-1 ml-60 min-h-screen overflow-auto">
+      <main className="flex-1 ml-[220px] min-h-screen overflow-auto">
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />

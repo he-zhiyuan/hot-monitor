@@ -1,5 +1,6 @@
-import { Pause, Play, Trash2, Radar, Zap, Clock, FileSearch, Loader2 } from 'lucide-react'
+import { Pause, Play, Trash2, Zap, Clock, FileSearch, Loader2, Radar } from 'lucide-react'
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import type { Monitor } from '../../types'
 import Badge from '../ui/Badge'
 import api from '../../lib/api'
@@ -8,27 +9,21 @@ interface Props {
   monitor: Monitor
   onRefresh: () => void
   onClick: () => void
-}
-
-const sourceColors: Record<string, string> = {
-  twitter: 'cyan',
-  hackernews: 'amber',
-  github: 'green',
-  web: 'gray',
+  index?: number
 }
 
 function timeAgo(dateStr?: string) {
   if (!dateStr) return '从未'
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return '刚刚'
-  if (mins < 60) return `${mins} 分钟前`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours} 小时前`
-  return `${Math.floor(hours / 24)} 天前`
+  if (mins < 1)  return '刚刚'
+  if (mins < 60) return `${mins}m ago`
+  const h = Math.floor(mins / 60)
+  if (h < 24)    return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
 }
 
-export default function MonitorCard({ monitor, onRefresh, onClick }: Props) {
+export default function MonitorCard({ monitor, onRefresh, onClick, index = 0 }: Props) {
   const [scanning, setScanning] = useState(false)
   const lastFinding = monitor.findings?.[0]
 
@@ -58,108 +53,130 @@ export default function MonitorCard({ monitor, onRefresh, onClick }: Props) {
   }
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.06 }}
       onClick={onClick}
-      className="group rounded-xl border transition-all duration-300 cursor-pointer hover:scale-[1.01]"
+      className="group relative rounded-xl border cursor-pointer transition-all duration-300 hover:scale-[1.01] hover:-translate-y-0.5 overflow-hidden"
       style={{
         background: monitor.isActive
-          ? 'rgba(124,58,237,0.06)'
+          ? 'rgba(34,211,238,0.03)'
           : 'rgba(255,255,255,0.02)',
         borderColor: monitor.isActive
-          ? 'rgba(124,58,237,0.2)'
+          ? 'rgba(34,211,238,0.15)'
           : 'rgba(255,255,255,0.06)',
+        boxShadow: monitor.isActive
+          ? '0 0 24px rgba(34,211,238,0.05)'
+          : 'none',
       }}
     >
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
+      {/* active glow bg */}
+      {monitor.isActive && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse at top left, rgba(34,211,238,0.04) 0%, transparent 60%)',
+          }}
+        />
+      )}
+
+      <div className="relative p-5">
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2.5">
             <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+              className="relative w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{
                 background: monitor.isActive
-                  ? 'linear-gradient(135deg,rgba(124,58,237,0.3),rgba(79,70,229,0.3))'
-                  : 'rgba(255,255,255,0.05)',
+                  ? 'rgba(34,211,238,0.1)'
+                  : 'rgba(255,255,255,0.04)',
+                border: monitor.isActive
+                  ? '1px solid rgba(34,211,238,0.2)'
+                  : '1px solid rgba(255,255,255,0.06)',
               }}
             >
               <Radar
                 size={16}
-                className={monitor.isActive ? 'text-purple-400 animate-pulse-slow' : 'text-slate-600'}
+                className={monitor.isActive ? 'text-cyan-400 animate-pulse-slow' : 'text-slate-600'}
               />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-200 text-sm">{monitor.keyword}</h3>
+              <h3 className="font-semibold text-slate-200 text-[13px] tracking-wide">
+                {monitor.keyword}
+              </h3>
               {monitor.description && (
-                <p className="text-xs text-slate-500 mt-0.5">{monitor.description}</p>
+                <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">{monitor.description}</p>
               )}
             </div>
           </div>
-          <Badge variant={monitor.isActive ? 'purple' : 'gray'}>
-            {monitor.isActive ? '监控中' : '已暂停'}
+          <Badge variant={monitor.isActive ? 'cyan' : 'gray'}>
+            {monitor.isActive ? 'LIVE' : 'PAUSED'}
           </Badge>
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-4 mb-4 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <FileSearch size={12} />
-            发现 {monitor._count?.findings ?? 0} 条
+        {/* ── Stats ── */}
+        <div className="flex items-center gap-4 mb-4 font-mono text-[10px] text-slate-600">
+          <span className="flex items-center gap-1">
+            <FileSearch size={10} />
+            {monitor._count?.findings ?? 0} findings
           </span>
-          <span className="flex items-center gap-1.5">
-            <Clock size={12} />
+          <span className="flex items-center gap-1">
+            <Clock size={10} />
             {timeAgo(monitor.lastChecked)}
           </span>
-          <span className="flex items-center gap-1.5">
-            <Zap size={12} />
-            每 {monitor.intervalMin} 分钟
+          <span className="flex items-center gap-1">
+            <Zap size={10} />
+            {monitor.intervalMin}m interval
           </span>
         </div>
 
-        {/* Last finding */}
+        {/* ── Last finding preview ── */}
         {lastFinding && (
           <div
-            className="rounded-lg px-3 py-2.5 mb-4 text-xs"
-            style={{ background: 'rgba(255,255,255,0.04)', borderLeft: '2px solid rgba(124,58,237,0.5)' }}
+            className="rounded-lg px-3 py-2 mb-4 text-[11px]"
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              borderLeft: '2px solid rgba(34,211,238,0.3)',
+            }}
           >
-            <div className="flex items-center gap-1.5 mb-1">
-              <Badge variant={(sourceColors[lastFinding.source] as any) || 'gray'}>
-                {lastFinding.source}
-              </Badge>
-              <span className="text-slate-600">{timeAgo(lastFinding.createdAt)}</span>
-            </div>
-            <p className="text-slate-400 line-clamp-2">{lastFinding.aiSummary || '...'}</p>
+            <p className="text-slate-400 line-clamp-2 leading-relaxed">
+              {lastFinding.aiSummary || lastFinding.title || '...'}
+            </p>
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        {/* ── Actions ── */}
+        <div
+          className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          onClick={e => e.stopPropagation()}
+        >
           <button
             onClick={handleScan}
             disabled={scanning}
-            className="px-2.5 py-1.5 rounded-lg text-xs text-cyan-400 hover:bg-cyan-500/10 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="立即扫描"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono text-cyan-400 hover:bg-cyan-500/10 transition-colors disabled:opacity-40"
           >
             {scanning
-              ? <><Loader2 size={12} className="animate-spin" /> 扫描中...</>
-              : <><Zap size={12} /> 立即扫描</>
+              ? <><Loader2 size={11} className="animate-spin" /> SCANNING</>
+              : <><Zap size={11} /> SCAN NOW</>
             }
           </button>
           <button
             onClick={toggleActive}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-            title={monitor.isActive ? '暂停' : '启动'}
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/8 transition-colors"
+            aria-label={monitor.isActive ? '暂停' : '启动'}
           >
-            {monitor.isActive ? <Pause size={14} /> : <Play size={14} />}
+            {monitor.isActive ? <Pause size={13} /> : <Play size={13} />}
           </button>
           <button
             onClick={handleDelete}
-            className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-            title="删除"
+            className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            aria-label="删除"
           >
-            <Trash2 size={14} />
+            <Trash2 size={13} />
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }

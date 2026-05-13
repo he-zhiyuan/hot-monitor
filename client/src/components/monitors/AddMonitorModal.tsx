@@ -46,18 +46,18 @@ export default function AddMonitorModal({ open, onClose, onSuccess }: Props) {
             value={keyword}
             onChange={e => setKeyword(e.target.value)}
             placeholder="如：Claude 5、GPT-5、Cursor AI"
-            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 placeholder-slate-600 border outline-none focus:border-purple-500/50 transition-colors"
-            style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 placeholder-slate-700 border outline-none focus:border-cyan-500/40 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.08)] transition-all"
+            style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.09)' }}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">备注说明</label>
+          <label className="block text-xs font-medium text-slate-500 mb-1.5">备注说明</label>
           <input
             value={description}
             onChange={e => setDescription(e.target.value)}
             placeholder="可选，方便自己识别"
-            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 placeholder-slate-600 border outline-none focus:border-purple-500/50 transition-colors"
-            style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.1)' }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 placeholder-slate-700 border outline-none focus:border-cyan-500/40 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.08)] transition-all"
+            style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.09)' }}
           />
         </div>
         <div>
@@ -65,8 +65,8 @@ export default function AddMonitorModal({ open, onClose, onSuccess }: Props) {
           <select
             value={interval}
             onChange={e => setInterval(Number(e.target.value))}
-            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 border outline-none focus:border-purple-500/50 transition-colors"
-            style={{ background: 'rgba(13,18,32,0.98)', borderColor: 'rgba(255,255,255,0.1)' }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 border outline-none focus:border-cyan-500/40 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.08)] transition-all"
+            style={{ background: 'rgba(8,12,22,0.98)', borderColor: 'rgba(255,255,255,0.09)' }}
           >
             <option value={5}>每 5 分钟</option>
             <option value={15}>每 15 分钟</option>

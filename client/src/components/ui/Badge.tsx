@@ -1,24 +1,26 @@
 interface BadgeProps {
   children: React.ReactNode
-  variant?: 'purple' | 'cyan' | 'green' | 'amber' | 'red' | 'gray'
+  variant?: 'cyan' | 'green' | 'amber' | 'red' | 'purple' | 'gray' | 'ghost'
   size?: 'sm' | 'md'
 }
 
-const variantStyles = {
-  purple: 'bg-purple-500/15 text-purple-300 border-purple-500/20',
-  cyan: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/20',
-  green: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20',
-  amber: 'bg-amber-500/15 text-amber-300 border-amber-500/20',
-  red: 'bg-red-500/15 text-red-300 border-red-500/20',
-  gray: 'bg-slate-500/15 text-slate-400 border-slate-500/20',
+const styles: Record<string, string> = {
+  cyan:   'bg-cyan-500/10   text-cyan-400   border-cyan-500/20',
+  green:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  amber:  'bg-amber-500/10  text-amber-400   border-amber-500/20',
+  red:    'bg-red-500/10    text-red-400     border-red-500/25',
+  purple: 'bg-violet-500/10 text-violet-400  border-violet-500/20',
+  gray:   'bg-white/5       text-slate-500   border-white/8',
+  ghost:  'bg-transparent   text-slate-600   border-white/6',
 }
 
 export default function Badge({ children, variant = 'gray', size = 'sm' }: BadgeProps) {
+  const sizeClass = size === 'sm'
+    ? 'px-1.5 py-0.5 text-[10px]'
+    : 'px-2 py-1 text-xs'
   return (
     <span
-      className={`inline-flex items-center border font-medium rounded-full ${variantStyles[variant]} ${
-        size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm'
-      }`}
+      className={`inline-flex items-center gap-1 rounded-md border font-medium font-mono tracking-wide ${sizeClass} ${styles[variant]}`}
     >
       {children}
     </span>

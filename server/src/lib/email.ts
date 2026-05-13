@@ -40,34 +40,86 @@ export async function sendNotificationEmail(payload: EmailPayload): Promise<void
       subject: `🔥 ${payload.subject}`,
       html: `
 <!DOCTYPE html>
-<html>
+<html lang="zh">
 <head>
   <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, sans-serif; background: #0a0f1e; color: #e2e8f0; margin: 0; padding: 20px; }
-    .container { max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.05); border-radius: 12px; padding: 24px; border: 1px solid rgba(255,255,255,0.1); }
-    .header { display: flex; align-items: center; margin-bottom: 20px; }
-    .badge { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .title { font-size: 18px; font-weight: 700; color: #f1f5f9; margin: 16px 0 8px; }
-    .body { color: #94a3b8; font-size: 14px; line-height: 1.6; }
-    .source { color: #64748b; font-size: 12px; margin-top: 12px; }
-    .btn { display: inline-block; margin-top: 20px; padding: 10px 24px; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600; }
-    .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); color: #475569; font-size: 12px; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${payload.subject}</title>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <span class="badge">🔥 HotMonitor 热点预警</span>
-    </div>
-    <div class="title">${payload.title}</div>
-    <div class="body">${payload.body}</div>
-    ${payload.source ? `<div class="source">来源：${payload.source}</div>` : ''}
-    ${payload.url ? `<a href="${payload.url}" class="btn">查看原文 →</a>` : ''}
-    <div class="footer">
-      此邮件由 HotMonitor 自动发送 · <a href="http://localhost:3001" style="color:#7c3aed;">打开控制台</a>
-    </div>
-  </div>
+<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f9;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+
+          <!-- 顶部色条 -->
+          <tr>
+            <td style="height:4px;background:linear-gradient(90deg,#06b6d4,#0891b2);font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:24px 32px 20px;border-bottom:1px solid #f1f5f9;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <span style="display:inline-block;background-color:#ecfeff;color:#0891b2;border:1px solid #cffafe;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;letter-spacing:0.5px;">
+                      ⚡ HotMonitor · AI 热点预警
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- 标题 + 正文 -->
+          <tr>
+            <td style="padding:28px 32px 24px;">
+              <h2 style="margin:0 0 14px 0;font-size:19px;font-weight:700;color:#0f172a;line-height:1.4;">
+                ${payload.title}
+              </h2>
+              <p style="margin:0;font-size:14px;color:#475569;line-height:1.7;">
+                ${payload.body}
+              </p>
+
+              ${payload.source ? `
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;">
+                <tr>
+                  <td style="padding:10px 14px;background-color:#f8fafc;border-radius:8px;border-left:3px solid #22d3ee;">
+                    <span style="font-size:12px;color:#64748b;">来源平台：</span>
+                    <span style="font-size:12px;font-weight:600;color:#0f172a;">${payload.source}</span>
+                  </td>
+                </tr>
+              </table>` : ''}
+
+              ${payload.url ? `
+              <table cellpadding="0" cellspacing="0" style="margin-top:24px;">
+                <tr>
+                  <td style="background-color:#06b6d4;border-radius:8px;">
+                    <a href="${payload.url}" target="_blank"
+                      style="display:inline-block;padding:11px 28px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.3px;">
+                      查看原文 →
+                    </a>
+                  </td>
+                </tr>
+              </table>` : ''}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px 20px;border-top:1px solid #f1f5f9;background-color:#fafafa;">
+              <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">
+                此邮件由 <strong style="color:#64748b;">HotMonitor</strong> 自动发送，请勿直接回复。<br>
+                你收到此邮件是因为订阅了关键词监控通知。
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`,
     })

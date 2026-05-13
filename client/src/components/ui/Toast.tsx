@@ -21,19 +21,19 @@ function Toast({ toast, onClose }: ToastProps) {
 
   return (
     <div
-      className="flex items-start gap-3 p-4 rounded-xl border shadow-2xl animate-slide-up cursor-pointer w-80"
+      className="relative flex items-start gap-3 p-4 rounded-xl border shadow-2xl animate-slide-left cursor-pointer w-80 overflow-hidden"
       style={{
-        background: 'rgba(13,18,32,0.98)',
-        borderColor: 'rgba(124,58,237,0.4)',
+        background: 'rgba(8,14,28,0.97)',
+        borderColor: 'rgba(34,211,238,0.35)',
         backdropFilter: 'blur(24px)',
-        boxShadow: '0 0 30px rgba(124,58,237,0.25), 0 8px 32px rgba(0,0,0,0.5)',
+        boxShadow: '0 0 30px rgba(34,211,238,0.12), 0 8px 32px rgba(0,0,0,0.5)',
       }}
       onClick={() => toast.url && window.open(toast.url, '_blank')}
     >
       {/* Icon */}
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-        style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+        style={{ background: 'linear-gradient(135deg, #06b6d4, #0891b2)' }}
       >
         <Zap size={15} className="text-white" />
       </div>
@@ -43,7 +43,7 @@ function Toast({ toast, onClose }: ToastProps) {
         <p className="text-sm font-semibold text-slate-100 leading-snug">{toast.title}</p>
         <p className="text-xs text-slate-400 mt-0.5 line-clamp-2 leading-relaxed">{toast.body}</p>
         {toast.url && (
-          <div className="flex items-center gap-1 mt-1.5 text-xs text-purple-400">
+          <div className="flex items-center gap-1 mt-1.5 text-xs text-cyan-400">
             <ExternalLink size={10} /> 点击查看原文
           </div>
         )}
@@ -62,7 +62,7 @@ function Toast({ toast, onClose }: ToastProps) {
         <div
           className="h-full rounded-full"
           style={{
-            background: 'linear-gradient(90deg, #7c3aed, #06b6d4)',
+            background: 'linear-gradient(90deg, #06b6d4, #22d3ee)',
             animation: 'shrink 6s linear forwards',
           }}
         />
