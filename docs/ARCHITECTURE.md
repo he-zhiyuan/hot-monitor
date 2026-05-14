@@ -1,7 +1,7 @@
 # HotMonitor - 技术架构文档
 
-**版本**：v1.1  
-**更新**：2026-05-13
+**版本**：v1.2  
+**更新**：2026-05-14
 
 ---
 
@@ -41,15 +41,20 @@
 
 ## 二、数据源
 
-| 来源 | 类型 | 访问方式 | 成本 | 适用功能 |
-|------|------|---------|------|---------|
-| Twitter/X (twitterapi.io) | 第三方 API | REST + `X-API-Key` | $0.15/1k tweets | 关键词监控、热点发现（可选） |
-| Hacker News (Algolia) | 官方免费 API | REST，无需 Key | 免费 | 关键词监控、热点发现 |
-| GitHub Trending | 爬虫 | cheerio 解析 HTML | 免费 | 热点发现 |
-| Reddit | 免费 JSON API | REST，无需 Key | 免费 | 关键词监控、热点发现 |
-| Dev.to | 官方免费 API | REST，无需 Key | 免费 | 关键词监控、热点发现 |
-| Google News RSS | RSS Feed | cheerio 解析 XML | 免费 | 关键词监控、热点发现 |
-| Bing 搜索 | 爬虫 | cheerio 解析 HTML | 免费 | 关键词监控补充 |
+| 来源 | 类型 | 成本 | 国内可用 | 适用功能 |
+|------|------|------|---------|---------|
+| Twitter/X (twitterapi.io) | 第三方 API | $0.15/1k | ✅ | 关键词监控、热点发现（可选） |
+| Hacker News (Algolia) | 官方免费 API | 免费 | ✅ | 关键词监控、热点发现 |
+| GitHub Trending | 爬虫 | 免费 | ✅ | 热点发现 |
+| Reddit | 免费 JSON API | 免费 | ❌ 超时 | 关键词监控、热点发现 |
+| Dev.to | 官方免费 API | 免费 | ✅ | 关键词监控、热点发现 |
+| Google News RSS | RSS Feed | 免费 | ❌ 超时 | 关键词监控、热点发现 |
+| Bing 搜索 | 爬虫 | 免费 | ✅ | 关键词监控补充 |
+| 百度搜索 | 爬虫 | 免费 | ✅ | 关键词监控（中文内容） |
+| B站 Bilibili | 公开 JSON API | 免费 | ✅ | 关键词监控、账号监控 |
+| 36氪 + 少数派 | RSS Feed | 免费 | ✅ | 关键词监控、热点发现 |
+
+> Reddit 和 Google News 在国内网络下超时，已设置并行请求 + 8s 超时上限，超时不阻塞其他源。
 
 ### Twitter/X 接入（可选）
 
@@ -71,19 +76,20 @@ GET http://hn.algolia.com/api/v1/search_by_date
 Params:
   - query: string
   - tags: story
-  - numericFilters: created_at_i>={timestamp}
+  - numericFilters: created_at_i>={timestamp}（默认48h）
   - hitsPerPage: 20
 热点发现额外过滤：points>10, num_comments>5
 ```
 
-### Reddit JSON API
+### Reddit JSON API（国内网络可能超时）
 
 ```
 GET https://www.reddit.com/r/{subreddit}/search.json   （关键词搜索）
 GET https://www.reddit.com/r/{subreddit}/hot.json       （热点发现）
 监控子版块：LocalLLaMA / MachineLearning / ChatGPT / ClaudeAI / artificial / programming / singularity
 过滤条件：score >= 5（搜索）/ score >= 10（热点）
-速率限制：请求间隔 1.1s，遵守 Reddit API 规范
+时间窗口：t=day（搜索）/ created_utc >= 48h（热点）
+并发策略：多子版块并行请求，单个超时 8s 不阻塞其他
 ```
 
 ### Dev.to API
@@ -96,12 +102,11 @@ Params:
   - state: fresh（搜索）| top=1（热点，当天最热）
 ```
 
-### Google News RSS
+### Google News RSS（国内网络可能超时）
 
 ```
 GET https://news.google.com/rss/search?q={query}&hl={lang}&gl={country}&ceid={ceid}
-同时请求中文（zh-CN）和英文（en-US）两个 Feed，URL 去重后合并
-使用 cheerio xmlMode 解析 RSS XML，提取 title/link/description/pubDate
+并行请求中文（zh-CN）和英文（en-US）两个 Feed，单个超时 8s，URL 去重后合并
 ```
 
 ### GitHub Trending 爬虫
@@ -112,52 +117,87 @@ GET https://github.com/trending?since=daily
 字段：repoName, description, language, stars, todayStars
 ```
 
+### 百度搜索爬虫（国内）
+
+```
+GET https://www.baidu.com/s?wd={query}&rn=10
+解析：cheerio 提取 #content_left .result 中的标题和摘要
+特点：国内直连，publishedAt 设为当前时间（无法从搜索结果获取原文发布时间）
+```
+
+### B站 Bilibili 公开 API
+
+```
+# 普通搜索模式
+GET https://api.bilibili.com/x/web-interface/search/type
+Params: search_type=video, keyword={keyword}, order=pubdate
+过滤：只保留 7 天内发布的视频
+
+# 账号模式（关键词以 @ 开头）
+Step 1: GET .../search/type?search_type=bili_user&keyword={username}   → 获取 UP主 mid
+Step 2: GET https://api.bilibili.com/x/space/arc/search?mid={mid}&ps=10&order=pubdate
+→ 直接获取该 UP主 最新10条投稿
+```
+
+### 36氪 + 少数派 RSS（国内）
+
+```
+GET https://36kr.com/feed    （36氪）
+GET https://sspai.com/feed   （少数派）
+两个 Feed 并行请求，使用 cheerio xmlMode 解析
+时间过滤：pubDate 超过 48h（搜索）/ 72h（热点发现）的文章丢弃
+```
+
 ---
 
 ## 三、项目结构
 
 ```
 hot-monitor/
-├── docs/                         # 文档目录
+├── docs/
 │   ├── PRD.md
 │   └── ARCHITECTURE.md
-├── server/                       # Express.js 后端
+├── server/
 │   ├── src/
-│   │   ├── routes/               # API 路由
+│   │   ├── routes/
 │   │   │   ├── monitors.ts       # GET/POST/PUT/DELETE /api/monitors
 │   │   │   ├── hotspots.ts       # GET /api/hotspots, POST /api/hotspots/refresh
 │   │   │   ├── notifications.ts  # GET/PATCH /api/notifications
 │   │   │   ├── scan.ts           # POST /api/scan (手动触发扫描)
 │   │   │   └── settings.ts       # GET/PUT /api/settings
 │   │   ├── lib/
-│   │   │   ├── prisma.ts         # Prisma 客户端单例
+│   │   │   ├── prisma.ts
 │   │   │   ├── openrouter.ts     # AI 客户端（EasyRouter/OpenRouter）
 │   │   │   ├── scheduler.ts      # node-cron 调度器
 │   │   │   ├── email.ts          # Nodemailer 邮件发送
 │   │   │   ├── socket.ts         # Socket.IO 实时推送
-│   │   │   └── sources/          # 数据源适配器（7个）
-│   │   │       ├── index.ts      # 聚合入口（7源并行 + URL去重）
+│   │   │   └── sources/          # 数据源适配器（10个）
+│   │   │       ├── index.ts      # 聚合入口（10源并行 + 时间过滤 + URL去重）
 │   │   │       ├── twitter.ts    # Twitter/X（含质量过滤）
 │   │   │       ├── hackernews.ts # HN Algolia API
 │   │   │       ├── github.ts     # GitHub Trending 爬虫
-│   │   │       ├── reddit.ts     # Reddit JSON API（7个AI子版块）
+│   │   │       ├── reddit.ts     # Reddit JSON API（并行，8s超时）
 │   │   │       ├── devto.ts      # Dev.to 官方 API
-│   │   │       ├── googlenews.ts # Google News RSS（中英双语）
-│   │   │       └── websearch.ts  # Bing 搜索爬虫
+│   │   │       ├── googlenews.ts # Google News RSS（并行，8s超时）
+│   │   │       ├── websearch.ts  # Bing 搜索爬虫
+│   │   │       ├── baidu.ts      # 百度搜索爬虫
+│   │   │       ├── bilibili.ts   # B站公开 API（含 UP主 账号模式）
+│   │   │       └── technews.ts   # 36氪 + 少数派 RSS
+│   │   ├── test-sources.ts       # 数据源可用性测试脚本
 │   │   └── index.ts              # Express 应用入口
 │   ├── prisma/
-│   │   ├── schema.prisma         # 数据库结构
-│   │   └── dev.db                # SQLite 数据库文件
+│   │   ├── schema.prisma
+│   │   └── dev.db
 │   ├── package.json
 │   └── tsconfig.json
-├── client/                       # React + Vite 前端
+├── client/
 │   ├── src/
 │   │   ├── pages/
-│   │   │   ├── Dashboard.tsx     # 主仪表板（热点总览）
-│   │   │   ├── Monitors.tsx      # 关键词监控管理
-│   │   │   ├── Hotspots.tsx      # 热点发现列表
-│   │   │   ├── Notifications.tsx # 通知中心
-│   │   │   └── Settings.tsx      # 系统设置
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Monitors.tsx
+│   │   │   ├── Hotspots.tsx
+│   │   │   ├── Notifications.tsx
+│   │   │   └── Settings.tsx
 │   │   ├── components/
 │   │   │   ├── layout/
 │   │   │   │   ├── Sidebar.tsx
@@ -166,18 +206,16 @@ hot-monitor/
 │   │   │   │   ├── MonitorCard.tsx
 │   │   │   │   └── AddMonitorModal.tsx
 │   │   │   ├── hotspots/
-│   │   │   │   └── HotspotCard.tsx   # 支持7种来源标签
+│   │   │   │   └── HotspotCard.tsx   # 支持11种来源标签
 │   │   │   └── ui/
-│   │   │       └── Badge.tsx         # 支持 cyan/green/amber/red/purple/blue/gray
+│   │   │       └── Badge.tsx         # cyan/green/amber/red/purple/blue/pink/gray/ghost
 │   │   ├── hooks/
 │   │   ├── lib/
 │   │   ├── store/
 │   │   └── types/
-│   ├── index.html
-│   ├── vite.config.ts
-│   └── tailwind.config.js
-├── .env.example                  # 环境变量示例
-└── package.json                  # 根 package（启动脚本）
+│   └── ...
+├── .env.example
+└── package.json
 ```
 
 ---
@@ -188,10 +226,10 @@ hot-monitor/
 // Monitor: 关键词监控任务
 model Monitor {
   id          String   @id @default(cuid())
-  keyword     String
+  keyword     String                        // 支持 @ 前缀的账号模式
   description String?
   isActive    Boolean  @default(true)
-  interval    Int      @default(15)         // 检查频率（分钟）
+  interval    Int      @default(15)
   lastChecked DateTime?
   createdAt   DateTime @default(now())
   findings    Finding[]
@@ -205,10 +243,10 @@ model Finding {
   title       String
   content     String   @db.Text
   url         String
-  source      String   // twitter/hackernews/github/reddit/devto/googlenews/web
+  source      String   // twitter/hackernews/github/reddit/devto/googlenews/web/baidu/bilibili/36kr/sspai
   author      String?
   publishedAt DateTime?
-  aiScore     Float                         // AI 相关性评分 0-1（-1 表示 AI 调用失败）
+  aiScore     Float                         // 0-1（-1 表示 AI 调用失败）
   aiSummary   String   @db.Text
   isNotified  Boolean  @default(false)
   createdAt   DateTime @default(now())
@@ -220,10 +258,10 @@ model HotSpot {
   title       String
   summary     String   @db.Text
   url         String
-  source      String   // twitter/hackernews/github/reddit/devto/googlenews/web
+  source      String   // 同上
   author      String?
   domain      String
-  heatScore   Float    @default(0)          // AI 热度分（0-10）
+  heatScore   Float    @default(0)
   sourceCount Int      @default(1)
   isRead      Boolean  @default(false)
   isSaved     Boolean  @default(false)
@@ -236,7 +274,7 @@ model Notification {
   id        String   @id @default(cuid())
   title     String
   body      String   @db.Text
-  type      String                          // monitor/hotspot/system
+  type      String
   refId     String?
   url       String?
   isRead    Boolean  @default(false)
@@ -261,14 +299,16 @@ model Setting {
 [node-cron 每15分钟]
   → 遍历所有 isActive=true 的 Monitor
   → 对每个 Monitor:
-      ① 7个数据源并行搜索关键词
-         Twitter / HN / GitHub / Reddit / Dev.to / Google News / Bing
-      ② 过滤已处理 URL（对比数据库）
-      ③ 调用 AI 验证内容真实性（每次调用前等待5s防限流）
+      ① 检测是否为账号模式（keyword 以 @ 开头）
+         - 账号模式：B站直接拉 UP主 主页 + Twitter 精确匹配 handle
+         - 普通模式：10个源并行搜索关键词
+      ② 全局时间过滤：丢弃 publishedAt 超过 48h 的条目
+      ③ 过滤已处理 URL（对比数据库）
+      ④ 调用 AI 验证内容真实性（每次调用前等待5s防限流）
          - 返回: { isReal: bool, relevance: float, summary: string }
-      ④ relevance > 0.5 → 保存 Finding → 创建 Notification
-      ⑤ 防重复通知：同一 URL 24h 内只推送一次
-      ⑥ 发送 Socket.IO 实时推送 + 邮件通知
+      ⑤ relevance > 0.5 → 保存 Finding → 创建 Notification
+      ⑥ 防重复通知：同一 URL 24h 内只推送一次
+      ⑦ 发送 Socket.IO 实时推送 + 邮件通知
   → 更新 Monitor.lastChecked
 ```
 
@@ -278,28 +318,60 @@ model Setting {
 [node-cron 每1小时]
   → 读取配置的领域列表（Setting: discovery_domains）
   → 对每个领域:
-      ① 7个数据源并行聚合内容
-      ② URL 去重，合并同一事件的多条记录
-      ③ 调用 AI 批量评分（每批最多5条）
+      ① 10个数据源并行聚合内容
+      ② 全局时间过滤：丢弃 publishedAt 超过 72h 的条目
+      ③ URL 去重，合并同一事件的多条记录
+      ④ 调用 AI 批量评分（每批最多5条）
          - 输出: heatScore(0-10) + 改写摘要
-      ④ heatScore >= 3 的条目保存到 HotSpot 表
-      ⑤ 清理 7 天前的旧数据
+      ⑤ heatScore >= 3 的条目保存到 HotSpot 表
+      ⑥ 清理 7 天前的旧数据
 ```
 
-### 5.3 Twitter 质量过滤策略
+### 5.3 全局时间新鲜度过滤（filterRecent）
+
+```
+对 aggregateSearch 和 aggregateTrending 的所有返回结果统一处理：
+
+保留条件（满足任一）：
+  - publishedAt 不存在或无效
+  - publishedAt 距当前 < 60s（Baidu/Bing 等使用 new Date() 占位，日期未知）
+  - publishedAt 在阈值时间内（搜索48h / 热点72h）
+
+丢弃条件：
+  - publishedAt 是真实日期，且超过阈值
+```
+
+### 5.4 账号监控模式
+
+```
+触发条件：关键词以 @ 开头，如 @宝玉、@OpenAI
+
+行为差异：
+  普通搜索                              账号模式
+  ─────────────────────────────────────────────────────
+  searchBilibili(keyword)         →  searchBilibiliUser(username)
+                                      Step1: 搜索 UP主 → 获取 mid
+                                      Step2: 拉取最新10条投稿
+
+  searchTwitter(keyword, 6h)      →  searchTwitter("@username", 6h)
+                                      精确匹配 handle
+
+  其他源：使用去掉 @ 后的账号名作为关键词正常搜索
+```
+
+### 5.5 Twitter 质量过滤策略
 
 ```
 API 层（twitterapi.io 查询参数）：
   - -is:reply          过滤纯回复推文
-  - min_faves:10       要求至少10个点赞（关键词监控）
-  - min_faves:10       热点发现同样标准
+  - min_faves:10       要求至少10个点赞
 
 本地二次过滤：
   - 文本以 @ 开头的推文丢弃（漏网的回复）
   - 综合互动分 = likes + retweets×2 < 5 的丢弃
 ```
 
-### 5.4 AI 提示词设计
+### 5.6 AI 提示词设计
 
 **关键词验证 Prompt**：
 ```
@@ -368,37 +440,47 @@ CLIENT_URL="http://localhost:5173"
 - **卡片**：`rgba(255,255,255,0.04)` + `backdrop-blur-xl` + `border: rgba(255,255,255,0.08)`
 - **主色调**：紫色渐变 `#7c3aed → #4f46e5`
 - **强调色**：青色 `#06b6d4`
-- **成功**：`#10b981`（绿色）
-- **警告**：`#f59e0b`（琥珀）
 - **字体**：`Inter`（正文）+ `JetBrains Mono`（代码/数据）
 
-### 来源标签配色
+### 来源标签配色（11种）
 
-| 来源 | Badge 颜色 | 说明 |
+| 来源 | Badge 变体 | 说明 |
 |------|-----------|------|
-| Twitter/X | cyan | 蓝绿色 |
-| Hacker News | amber | 琥珀橙 |
-| GitHub | green | 翠绿色 |
-| Reddit | red | 红色（品牌色） |
-| Dev.to | purple | 紫色（品牌色） |
-| Google News | blue | 蓝色 |
-| Web/Bing | gray | 中性灰 |
+| Twitter/X | `cyan` | 蓝绿色 |
+| Hacker News | `amber` | 琥珀橙 |
+| GitHub | `green` | 翠绿色 |
+| Reddit | `red` | 红色（品牌色） |
+| Dev.to | `purple` | 紫色（品牌色） |
+| Google News | `blue` | 蓝色 |
+| Web/Bing | `gray` | 中性灰 |
+| B站 Bilibili | `pink` | 粉色（品牌色） |
+| 百度 | `blue` | 蓝色 |
+| 36氪 | `green` | 绿色 |
+| 少数派 | `amber` | 琥珀色 |
 
 ### 布局
 
 - **桌面**：左侧固定侧边栏（240px）+ 右侧主内容区
 - **移动**：底部导航栏 + 全屏内容区
 
-### 核心动效
+---
 
-- 卡片 hover：`scale(1.01)` + 边框发光（box-shadow: 0 0 20px rgba(124,58,237,0.3)）
-- 热点评分：环形进度计（HeatGauge）按分值变色（红/琥珀/青/灰）
-- 通知 badge：脉冲光圈动画
-- 新数据载入：从下方渐入（`translateY(10px) → 0`，300ms）
+## 八、开发工具
+
+### 数据源测试脚本
+
+```bash
+# 在 server/ 目录下运行
+npx tsx src/test-sources.ts "Claude"    # 测试英文关键词
+npx tsx src/test-sources.ts "大模型"    # 测试中文关键词
+npx tsx src/test-sources.ts "@宝玉"     # 测试账号模式
+```
+
+输出内容：每个源的返回条数、响应时间、最新内容时间、前3条标题预览、失败原因。
 
 ---
 
-## 八、开发里程碑
+## 九、开发里程碑
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
@@ -409,4 +491,6 @@ CLIENT_URL="http://localhost:5173"
 | Phase 5 | 前端 UI 开发（深色玻璃拟态） | ✅ 完成 |
 | Phase 6 | 通知系统（Socket.IO + 邮件） | ✅ 完成 |
 | Phase 7 | 多源扩展（Reddit + Dev.to + Google News）+ Twitter 质量过滤 | ✅ 完成 |
-| Phase 8 | Agent Skills 封装 | 待定 |
+| Phase 8 | 国内源扩展（百度 + B站 + 36氪 + 少数派）+ 账号监控模式 | ✅ 完成 |
+| Phase 9 | 全局时间新鲜度过滤 + 超时优化 + 数据源测试工具 | ✅ 完成 |
+| Phase 10 | Agent Skills 封装 | 待定 |
