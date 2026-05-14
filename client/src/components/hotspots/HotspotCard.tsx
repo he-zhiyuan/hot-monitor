@@ -18,8 +18,12 @@ const sourceLabel: Record<string, string> = {
   reddit:     'Reddit',
   devto:      'Dev.to',
   googlenews: 'Google News',
+  bilibili:   'B站',
+  baidu:      '百度',
+  '36kr':     '36氪',
+  sspai:      '少数派',
 }
-const sourceBadge: Record<string, 'cyan' | 'amber' | 'green' | 'gray' | 'red' | 'purple' | 'blue'> = {
+const sourceBadge: Record<string, 'cyan' | 'amber' | 'green' | 'gray' | 'red' | 'purple' | 'blue' | 'pink'> = {
   twitter:    'cyan',
   hackernews: 'amber',
   github:     'green',
@@ -27,6 +31,10 @@ const sourceBadge: Record<string, 'cyan' | 'amber' | 'green' | 'gray' | 'red' | 
   reddit:     'red',
   devto:      'purple',
   googlenews: 'blue',
+  bilibili:   'pink',
+  baidu:      'blue',
+  '36kr':     'green',
+  sspai:      'amber',
 }
 
 function timeAgo(dateStr?: string) {
