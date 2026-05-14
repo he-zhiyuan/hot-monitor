@@ -18,7 +18,8 @@ const RSS_FEEDS: Array<{ url: string; source: '36kr' | 'sspai' }> = [
 async function fetchRSS(
   feedUrl: string,
   source: '36kr' | 'sspai',
-  keyword?: string
+  keyword?: string,
+  maxAgeHours = 72
 ): Promise<TechNewsItem[]> {
   try {
     const res = await axios.get(feedUrl, {
@@ -58,6 +59,13 @@ async function fetchRSS(
         $el.find('dc\\:creator').text().trim()
 
       if (!title || !link.startsWith('http')) return
+
+      // 时间过滤：丢弃超过 maxAgeHours 的文章
+      const parsedDate = pubDate ? new Date(pubDate) : null
+      if (parsedDate && !isNaN(parsedDate.getTime())) {
+        const ageHours = (Date.now() - parsedDate.getTime()) / 3600000
+        if (ageHours > maxAgeHours) return
+      }
 
       // 关键词过滤：标题或摘要包含关键词首词即通过
       if (keyword) {
@@ -103,18 +111,18 @@ export async function getSspaiTrending(): Promise<TechNewsItem[]> {
   return fetchRSS('https://sspai.com/feed', 'sspai')
 }
 
-/** 同时搜索两个源 */
+/** 同时搜索两个源（关键词监控，48h 时间窗口） */
 export async function searchTechNews(keyword: string): Promise<TechNewsItem[]> {
   const results = await Promise.allSettled(
-    RSS_FEEDS.map(f => fetchRSS(f.url, f.source, keyword))
+    RSS_FEEDS.map(f => fetchRSS(f.url, f.source, keyword, 48))
   )
   return results.flatMap(r => (r.status === 'fulfilled' ? r.value : []))
 }
 
-/** 同时获取两个源的热点内容 */
+/** 同时获取两个源的热点内容（热点发现，72h 时间窗口） */
 export async function getTechNewsTrending(): Promise<TechNewsItem[]> {
   const results = await Promise.allSettled(
-    RSS_FEEDS.map(f => fetchRSS(f.url, f.source))
+    RSS_FEEDS.map(f => fetchRSS(f.url, f.source, undefined, 72))
   )
   return results.flatMap(r => (r.status === 'fulfilled' ? r.value : []))
 }

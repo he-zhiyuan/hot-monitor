@@ -46,6 +46,27 @@ function dedup(items: SourceItem[]): SourceItem[] {
   })
 }
 
+/**
+ * 全局时间过滤：丢弃超过 maxAgeHours 的条目
+ *
+ * 判断逻辑：
+ * - publishedAt 不存在 → 保留
+ * - publishedAt 距当前 < 60s（Baidu/Bing 设为 new Date()）→ 保留（日期未知，不过滤）
+ * - publishedAt 超过 maxAgeHours → 丢弃
+ */
+function filterRecent(items: SourceItem[], maxAgeHours: number): SourceItem[] {
+  const now = Date.now()
+  const threshold = now - maxAgeHours * 3600_000
+  return items.filter(item => {
+    if (!item.publishedAt) return true
+    const t = (item.publishedAt as Date).getTime()
+    if (isNaN(t)) return true
+    // 距现在不足 60s → 视为"当前时刻"占位符（Baidu/Bing），直接保留
+    if (t >= now - 60_000) return true
+    return t >= threshold
+  })
+}
+
 function collect(
   results: PromiseSettledResult<SourceItem[]>[],
   labels: string[]
@@ -103,7 +124,8 @@ export async function aggregateSearch(keyword: string): Promise<SourceItem[]> {
   ]
 
   const results = await Promise.allSettled(searches)
-  return dedup(collect(results as PromiseSettledResult<SourceItem[]>[], labels))
+  // 关键词监控：只保留最近 48h 的内容
+  return filterRecent(dedup(collect(results as PromiseSettledResult<SourceItem[]>[], labels)), 48)
 }
 
 // ── 热点发现（aggregateTrending）─────────────────────────────────────────────
@@ -133,5 +155,6 @@ export async function aggregateTrending(domain: string): Promise<SourceItem[]> {
   ]
 
   const results = await Promise.allSettled(searches)
-  return dedup(collect(results as PromiseSettledResult<SourceItem[]>[], labels))
+  // 热点发现：只保留最近 72h 的内容
+  return filterRecent(dedup(collect(results as PromiseSettledResult<SourceItem[]>[], labels)), 72)
 }

@@ -49,9 +49,10 @@ export async function searchBilibili(keyword: string): Promise<BilibiliItem[]> {
       return []
     }
 
+    const cutoffTs = Math.floor(Date.now() / 1000) - 7 * 86400  // 7天前
     const videos: any[] = res.data?.data?.result || []
     return videos
-      .filter(v => v.bvid && v.title)
+      .filter(v => v.bvid && v.title && (v.pubdate || 0) >= cutoffTs)
       .map(v => ({
         title: cleanTitle(v.title),
         url: `https://www.bilibili.com/video/${v.bvid}`,

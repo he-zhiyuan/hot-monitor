@@ -55,7 +55,7 @@ export async function searchReddit(query: string): Promise<RedditItem[]> {
   for (const sub of AI_SUBREDDITS.slice(0, 3)) {
     try {
       const res = await axios.get(`https://www.reddit.com/r/${sub}/search.json`, {
-        params: { q: query, sort: 'new', t: 'week', limit: 15, restrict_sr: 1 },
+        params: { q: query, sort: 'new', t: 'day', limit: 15, restrict_sr: 1 },
         headers: HEADERS,
         timeout: 12000,
       })
@@ -89,11 +89,14 @@ export async function getRedditTrending(topic: string): Promise<RedditItem[]> {
         timeout: 12000,
       })
 
+      // 热点发现只保留 48h 内的帖子
+      const cutoff = Date.now() / 1000 - 48 * 3600
       const posts: any[] = res.data?.data?.children || []
       posts
         .filter(p => {
           const d = p.data
           if (!d?.title || d.score < 10) return false
+          if (d.created_utc < cutoff) return false
           // 如果 topic 为空或帖子内容/标签包含关键词则通过
           if (!topicKeyword) return true
           const text = `${d.title} ${d.selftext || ''} ${d.subreddit}`.toLowerCase()
