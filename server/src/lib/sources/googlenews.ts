@@ -34,51 +34,51 @@ async function fetchGoogleNewsRSS(query: string): Promise<GoogleNewsItem[]> {
       `https://news.google.com/rss/search?q=${encoded}&hl=en-US&gl=US&ceid=US:en`,
     ]
 
-    const allItems: GoogleNewsItem[] = []
+    function parseRSS(xml: string): GoogleNewsItem[] {
+      const $ = cheerio.load(xml, { xmlMode: true })
+      const items: GoogleNewsItem[] = []
+      $('item').each((i, el) => {
+        if (i >= 8) return
+        const $el = $(el)
+        const rawTitle = $el.find('title').first().text().trim()
+        const title = rawTitle.replace(/\s*-\s*[^-]+$/, '').trim() || rawTitle
+        let link = $el.find('link').text().trim()
+        if (!link) link = $el.find('guid').text().trim()
+        const description = $el.find('description').text().trim().replace(/<[^>]+>/g, '').trim()
+        const pubDate = $el.find('pubDate').text().trim()
+        const sourceName = $el.find('source').text().trim()
+        if (title && link && link.startsWith('http')) {
+          items.push({
+            title,
+            url: link,
+            content: description || title,
+            author: sourceName || '',
+            publishedAt: pubDate ? new Date(pubDate) : new Date(),
+            source: 'googlenews' as const,
+          })
+        }
+      })
+      return items
+    }
 
-    for (const rssUrl of urls) {
-      try {
-        const res = await axios.get(rssUrl, {
-          timeout: 12000,
+    // 两个 RSS 并行请求，任一超时不阻塞另一个
+    const fetches = urls.map(rssUrl =>
+      axios
+        .get(rssUrl, {
+          timeout: 8000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; HotMonitor/1.0)',
             Accept: 'application/rss+xml, application/xml, text/xml, */*',
           },
         })
-
-        const $ = cheerio.load(res.data, { xmlMode: true })
-
-        $('item').each((i, el) => {
-          if (i >= 8) return
-          const $el = $(el)
-
-          const rawTitle = $el.find('title').first().text().trim()
-          // Google News 标题格式：「新闻标题 - 来源媒体」
-          const title = rawTitle.replace(/\s*-\s*[^-]+$/, '').trim() || rawTitle
-
-          // link 标签在 RSS 中位于 <link> 或 CDATA
-          let link = $el.find('link').text().trim()
-          if (!link) link = $el.find('guid').text().trim()
-
-          const description = $el.find('description').text().trim().replace(/<[^>]+>/g, '').trim()
-          const pubDate = $el.find('pubDate').text().trim()
-          const sourceName = $el.find('source').text().trim()
-
-          if (title && link && link.startsWith('http')) {
-            allItems.push({
-              title,
-              url: link,
-              content: description || title,
-              author: sourceName || '',
-              publishedAt: pubDate ? new Date(pubDate) : new Date(),
-              source: 'googlenews' as const,
-            })
-          }
+        .then(res => parseRSS(res.data))
+        .catch(err => {
+          console.warn(`[GoogleNews] ${rssUrl}:`, (err as any)?.message)
+          return [] as GoogleNewsItem[]
         })
-      } catch (err) {
-        console.error(`[GoogleNews] RSS fetch error for ${rssUrl}:`, (err as any)?.message)
-      }
-    }
+    )
+
+    const allItems = (await Promise.all(fetches)).flat()
 
     // URL 去重（同一新闻可能同时出现在中英文源中）
     const seen = new Set<string>()

@@ -47,67 +47,66 @@ function mapPost(d: any): RedditItem {
 
 /**
  * 按关键词在多个 AI 子版块中搜索（用于关键词监控）
+ * 并行请求，单个超时不影响其他子版块
  */
 export async function searchReddit(query: string): Promise<RedditItem[]> {
-  const results: RedditItem[] = []
-
-  // 只搜最相关的3个子版块，避免请求过多
-  for (const sub of AI_SUBREDDITS.slice(0, 3)) {
-    try {
-      const res = await axios.get(`https://www.reddit.com/r/${sub}/search.json`, {
+  const fetches = AI_SUBREDDITS.slice(0, 3).map(sub =>
+    axios
+      .get(`https://www.reddit.com/r/${sub}/search.json`, {
         params: { q: query, sort: 'new', t: 'day', limit: 15, restrict_sr: 1 },
         headers: HEADERS,
-        timeout: 12000,
+        timeout: 8000,
       })
+      .then(res => {
+        const posts: any[] = res.data?.data?.children || []
+        return posts
+          .filter(p => p.data?.score >= 5 && p.data?.title)
+          .map(p => mapPost(p.data))
+      })
+      .catch(err => {
+        console.warn(`[Reddit] search r/${sub}:`, (err as any)?.message)
+        return [] as RedditItem[]
+      })
+  )
 
-      const posts: any[] = res.data?.data?.children || []
-      posts
-        .filter(p => p.data?.score >= 5 && p.data?.title)
-        .forEach(p => results.push(mapPost(p.data)))
-    } catch (err) {
-      console.error(`[Reddit] search error for r/${sub}:`, (err as any)?.message)
-    }
-    // 遵守 Reddit 速率限制（1 req/s）
-    await new Promise(r => setTimeout(r, 1100))
-  }
-
-  return results
+  const settled = await Promise.all(fetches)
+  return settled.flat()
 }
 
 /**
  * 获取各 AI 子版块的热门帖子（用于热点发现）
+ * 并行请求，单个超时不影响其他子版块
  */
 export async function getRedditTrending(topic: string): Promise<RedditItem[]> {
-  const results: RedditItem[] = []
+  const cutoff = Date.now() / 1000 - 48 * 3600
   const topicKeyword = topic.toLowerCase().split(/\s+/)[0]
 
-  for (const sub of AI_SUBREDDITS) {
-    try {
-      const res = await axios.get(`https://www.reddit.com/r/${sub}/hot.json`, {
+  const fetches = AI_SUBREDDITS.map(sub =>
+    axios
+      .get(`https://www.reddit.com/r/${sub}/hot.json`, {
         params: { limit: 15 },
         headers: HEADERS,
-        timeout: 12000,
+        timeout: 8000,
       })
+      .then(res => {
+        const posts: any[] = res.data?.data?.children || []
+        return posts
+          .filter(p => {
+            const d = p.data
+            if (!d?.title || d.score < 10) return false
+            if (d.created_utc < cutoff) return false
+            if (!topicKeyword) return true
+            const text = `${d.title} ${d.selftext || ''} ${d.subreddit}`.toLowerCase()
+            return text.includes(topicKeyword)
+          })
+          .map(p => mapPost(p.data))
+      })
+      .catch(err => {
+        console.warn(`[Reddit] trending r/${sub}:`, (err as any)?.message)
+        return [] as RedditItem[]
+      })
+  )
 
-      // 热点发现只保留 48h 内的帖子
-      const cutoff = Date.now() / 1000 - 48 * 3600
-      const posts: any[] = res.data?.data?.children || []
-      posts
-        .filter(p => {
-          const d = p.data
-          if (!d?.title || d.score < 10) return false
-          if (d.created_utc < cutoff) return false
-          // 如果 topic 为空或帖子内容/标签包含关键词则通过
-          if (!topicKeyword) return true
-          const text = `${d.title} ${d.selftext || ''} ${d.subreddit}`.toLowerCase()
-          return text.includes(topicKeyword)
-        })
-        .forEach(p => results.push(mapPost(p.data)))
-    } catch (err) {
-      console.error(`[Reddit] trending error for r/${sub}:`, (err as any)?.message)
-    }
-    await new Promise(r => setTimeout(r, 1100))
-  }
-
-  return results
+  const settled = await Promise.all(fetches)
+  return settled.flat()
 }
