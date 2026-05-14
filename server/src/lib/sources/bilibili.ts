@@ -11,23 +11,55 @@ export interface BilibiliItem {
   likes: number
 }
 
-const HEADERS = {
+const BASE_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   Referer: 'https://www.bilibili.com',
-  Accept: 'application/json',
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'zh-CN,zh;q=0.9',
+  Origin: 'https://www.bilibili.com',
 }
 
-// 去除 Bilibili API 返回标题中的 HTML 加粗标签
+// ── buvid 缓存（进程内有效，规避 412 风控）────────────────────────────────────
+
+let cachedBuvid3 = ''
+
+async function getBuvid3(): Promise<string> {
+  if (cachedBuvid3) return cachedBuvid3
+  try {
+    const res = await axios.get('https://api.bilibili.com/x/frontend/finger/spi', {
+      headers: BASE_HEADERS,
+      timeout: 8000,
+    })
+    if (res.data?.code === 0) {
+      cachedBuvid3 = res.data.data?.b_3 || ''
+      console.log('[Bilibili] Got buvid3:', cachedBuvid3.slice(0, 12) + '…')
+    }
+  } catch {
+    // buvid 获取失败不影响主流程，降级为无 cookie 请求
+  }
+  return cachedBuvid3
+}
+
+async function getHeaders(): Promise<Record<string, string>> {
+  const buvid3 = await getBuvid3()
+  return {
+    ...BASE_HEADERS,
+    ...(buvid3 ? { Cookie: `buvid3=${buvid3}` } : {}),
+  }
+}
+
+// ── 工具 ─────────────────────────────────────────────────────────────────────
+
 function cleanTitle(title: string): string {
   return title.replace(/<[^>]+>/g, '').trim()
 }
 
-/**
- * 按关键词搜索 B站视频（普通搜索模式）
- */
+// ── 普通关键词搜索 ────────────────────────────────────────────────────────────
+
 export async function searchBilibili(keyword: string): Promise<BilibiliItem[]> {
   try {
+    const headers = await getHeaders()
     const res = await axios.get(
       'https://api.bilibili.com/x/web-interface/search/type',
       {
@@ -39,7 +71,7 @@ export async function searchBilibili(keyword: string): Promise<BilibiliItem[]> {
           page: 1,
           page_size: 15,
         },
-        headers: HEADERS,
+        headers,
         timeout: 12000,
       }
     )
@@ -49,7 +81,7 @@ export async function searchBilibili(keyword: string): Promise<BilibiliItem[]> {
       return []
     }
 
-    const cutoffTs = Math.floor(Date.now() / 1000) - 7 * 86400  // 7天前
+    const cutoffTs = Math.floor(Date.now() / 1000) - 7 * 86400
     const videos: any[] = res.data?.data?.result || []
     return videos
       .filter(v => v.bvid && v.title && (v.pubdate || 0) >= cutoffTs)
@@ -69,27 +101,34 @@ export async function searchBilibili(keyword: string): Promise<BilibiliItem[]> {
   }
 }
 
+// ── 账号模式 ─────────────────────────────────────────────────────────────────
+
 /**
- * 账号模式：按 UP主 名称搜索，获取其最新投稿视频
- * 当关键词以 @ 开头时触发（如 @宝玉）
+ * 账号模式：获取指定 UP主 的最新投稿视频
+ * 当关键词以 @ 开头时触发（如 @程序员鱼皮）
+ *
+ * 实现：
+ *   Step 1 - bili_user 搜索，获取 UP主 精确昵称
+ *   Step 2 - 视频搜索 + author 精确过滤（替代已废弃的 /x/space/arc/search）
  */
 export async function searchBilibiliUser(username: string): Promise<BilibiliItem[]> {
   try {
-    // Step 1：搜索 UP主
+    const headers = await getHeaders()
+
+    // Step 1：获取 UP主 精确昵称
     const userRes = await axios.get(
       'https://api.bilibili.com/x/web-interface/search/type',
       {
-        params: {
-          search_type: 'bili_user',
-          keyword: username,
-          page: 1,
-        },
-        headers: HEADERS,
-        timeout: 12000,
+        params: { search_type: 'bili_user', keyword: username, page: 1 },
+        headers,
+        timeout: 10000,
       }
     )
 
-    if (userRes.data?.code !== 0) return []
+    if (userRes.data?.code !== 0) {
+      console.warn(`[Bilibili] bili_user search code: ${userRes.data?.code}`)
+      return []
+    }
 
     const users: any[] = userRes.data?.data?.result || []
     if (users.length === 0) {
@@ -97,34 +136,49 @@ export async function searchBilibiliUser(username: string): Promise<BilibiliItem
       return []
     }
 
-    // 取名称最匹配的第一个结果
-    const topUser = users[0]
-    const mid: number = topUser.mid
-    console.log(`[Bilibili] Found UP主: ${topUser.uname} (mid=${mid})`)
+    // 优先精确匹配，否则取第一个
+    const matched = users.find((u: any) => u.uname === username) || users[0]
+    const exactName: string = matched.uname
+    console.log(`[Bilibili] Found UP主: ${exactName} (mid=${matched.mid})`)
 
-    // Step 2：获取该 UP主 最新投稿
-    const videosRes = await axios.get(
-      'https://api.bilibili.com/x/space/arc/search',
+    // Step 2：视频搜索 + author 精确过滤
+    const videoRes = await axios.get(
+      'https://api.bilibili.com/x/web-interface/search/type',
       {
-        params: { mid, ps: 10, pn: 1, order: 'pubdate' },
-        headers: HEADERS,
-        timeout: 12000,
+        params: {
+          search_type: 'video',
+          keyword: exactName,
+          order: 'pubdate',
+          page: 1,
+          page_size: 20,
+        },
+        headers,
+        timeout: 10000,
       }
     )
 
-    if (videosRes.data?.code !== 0) return []
+    if (videoRes.data?.code !== 0) return []
 
-    const videos: any[] = videosRes.data?.data?.list?.vlist || []
-    return videos.map(v => ({
-      title: v.title,
-      url: `https://www.bilibili.com/video/${v.bvid || `av${v.aid}`}`,
-      content: v.description || v.title,
-      author: topUser.uname || username,
-      publishedAt: new Date(v.created * 1000),
-      source: 'bilibili' as const,
-      views: v.play || 0,
-      likes: 0,
-    }))
+    const videos: any[] = videoRes.data?.data?.result || []
+    const cutoffTs = Math.floor(Date.now() / 1000) - 30 * 86400 // 30天内
+
+    return videos
+      .filter((v: any) =>
+        v.bvid &&
+        v.title &&
+        v.author === exactName &&
+        (v.pubdate || 0) >= cutoffTs
+      )
+      .map((v: any) => ({
+        title: cleanTitle(v.title),
+        url: `https://www.bilibili.com/video/${v.bvid}`,
+        content: v.description || cleanTitle(v.title),
+        author: exactName,
+        publishedAt: new Date(v.pubdate * 1000),
+        source: 'bilibili' as const,
+        views: v.play || 0,
+        likes: v.like || 0,
+      }))
   } catch (err) {
     console.error('[Bilibili] user search error:', (err as any)?.message)
     return []

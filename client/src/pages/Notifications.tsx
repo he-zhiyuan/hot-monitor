@@ -9,6 +9,12 @@ import { get, post, patch, del } from '../lib/api'
 import { useAppStore } from '../store'
 import type { Notification } from '../types'
 
+const TIME_RANGE_OPTIONS = [
+  { value: 'all',   label: 'ALL TIME' },
+  { value: 'today', label: '今天' },
+  { value: '7d',    label: '7天内' },
+]
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -21,14 +27,19 @@ function timeAgo(dateStr: string) {
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(true)
-  const [unread, setUnread] = useState(0)
+  const [loading,  setLoading]  = useState(true)
+  const [unread,   setUnread]   = useState(0)
+  const [unreadOnly, setUnreadOnly] = useState(false)
+  const [timeRange,  setTimeRange]  = useState('all')
   const { setUnreadCount } = useAppStore()
 
   const load = async () => {
     setLoading(true)
     try {
-      const res = await get<{ success: boolean; data: Notification[]; unreadCount: number }>('/notifications?limit=100')
+      const params = new URLSearchParams({ limit: '100' })
+      if (unreadOnly)        params.set('unreadOnly', 'true')
+      if (timeRange !== 'all') params.set('timeRange', timeRange)
+      const res = await get<{ success: boolean; data: Notification[]; unreadCount: number }>(`/notifications?${params}`)
       setNotifications(res.data)
       setUnread(res.unreadCount)
       setUnreadCount(res.unreadCount)
@@ -41,7 +52,7 @@ export default function Notifications() {
   const markRead    = async (id: string) => { await patch(`/notifications/${id}/read`); load() }
   const deleteNotif = async (id: string) => { await del(`/notifications/${id}`); load() }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [unreadOnly, timeRange])
 
   return (
     <div className="animate-fade-in">
@@ -57,7 +68,51 @@ export default function Notifications() {
         }
       />
 
-      <div className="p-7">
+      <div className="p-7 space-y-4">
+        {/* ── 筛选栏 ── */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* 仅未读切换 */}
+          <button
+            onClick={() => setUnreadOnly(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono transition-all"
+            style={{
+              background: unreadOnly ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.03)',
+              border: '1px solid',
+              borderColor: unreadOnly ? 'rgba(34,211,238,0.3)' : 'rgba(255,255,255,0.08)',
+              color: unreadOnly ? '#22d3ee' : '#475569',
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: unreadOnly ? '#22d3ee' : '#334155' }}
+            />
+            仅未读
+          </button>
+
+          {/* 时间范围 */}
+          <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+            {TIME_RANGE_OPTIONS.map(o => (
+              <button
+                key={o.value}
+                onClick={() => setTimeRange(o.value)}
+                className="px-3 py-1.5 text-[10px] font-mono transition-all"
+                style={{
+                  background: timeRange === o.value ? 'rgba(34,211,238,0.12)' : 'rgba(255,255,255,0.02)',
+                  color: timeRange === o.value ? '#22d3ee' : '#475569',
+                  borderRight: '1px solid rgba(255,255,255,0.05)',
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+
+          {/* 结果数 */}
+          <span className="text-[10px] text-slate-600 font-mono ml-auto">
+            {notifications.length} 条
+          </span>
+        </div>
+
         {loading ? (
           <Card className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
             {Array(5).fill(0).map((_, i) => (
@@ -70,7 +125,9 @@ export default function Notifications() {
         ) : notifications.length === 0 ? (
           <Card className="p-14 text-center">
             <Bell size={32} className="text-slate-700 mx-auto mb-3" />
-            <p className="text-slate-400 font-medium mb-1">暂无通知</p>
+            <p className="text-slate-400 font-medium mb-1">
+              {unreadOnly || timeRange !== 'all' ? '当前筛选条件下暂无通知' : '暂无通知'}
+            </p>
             <p className="text-slate-700 text-xs">当监控到新热点时，通知会出现在这里</p>
           </Card>
         ) : (

@@ -124,8 +124,9 @@ export async function aggregateSearch(keyword: string): Promise<SourceItem[]> {
   ]
 
   const results = await Promise.allSettled(searches)
-  // 关键词监控：只保留最近 48h 的内容
-  return filterRecent(dedup(collect(results as PromiseSettledResult<SourceItem[]>[], labels)), 48)
+  // 账号模式用更宽的时间窗口（7天），普通关键词用 48h
+  const maxAge = isAccount ? 168 : 48
+  return filterRecent(dedup(collect(results as PromiseSettledResult<SourceItem[]>[], labels)), maxAge)
 }
 
 // ── 热点发现（aggregateTrending）─────────────────────────────────────────────

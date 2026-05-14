@@ -15,7 +15,8 @@ export async function scanMonitor(monitorId: string): Promise<{ foundCount: numb
   const monitor = await prisma.monitor.findUnique({ where: { id: monitorId } })
   if (!monitor || !monitor.isActive) return { foundCount: 0, notifiedCount: 0 }
 
-  console.log(`[Scheduler] Scanning monitor: "${monitor.keyword}"`)
+  const isAccount = monitor.keyword.trimStart().startsWith('@')
+  console.log(`[Scheduler] Scanning monitor: "${monitor.keyword}"${isAccount ? ' (account mode)' : ''}`)
 
   const existingUrls = new Set(
     (await prisma.finding.findMany({
@@ -32,19 +33,27 @@ export async function scanMonitor(monitorId: string): Promise<{ foundCount: numb
     return { foundCount: 0, notifiedCount: 0 }
   }
 
-  // 只取前5条（减少 AI 调用次数，避免限流）
-  const itemsToProcess = newItems.slice(0, 5)
+  // 账号模式取更多条（用户想看完整投稿列表），普通模式取前5条
+  const itemsToProcess = newItems.slice(0, isAccount ? 10 : 5)
   console.log(`[Scheduler] Found ${itemsToProcess.length} new items for "${monitor.keyword}"`)
 
   let notifiedCount = 0
 
   for (const item of itemsToProcess) {
-    // 每次 AI 调用前等待 5 秒，避免免费模型限流（429）
-    await new Promise(r => setTimeout(r, 5000))
+    let aiResult = { isReal: true, relevance: 1, summary: '', reason: '' }
+    let aiFailed = false
+    let aiFiltered = false
 
-    const aiResult = await verifyContent(monitor.keyword, item.title, item.content)
-    const aiFailed = aiResult.relevance === 0 && !aiResult.isReal && aiResult.reason === 'AI 分析失败'
-    const aiFiltered = !aiFailed && !aiResult.isReal && aiResult.relevance < 0.5
+    if (isAccount) {
+      // 账号模式：跳过 AI 验证，直接视为相关（只要是该账号发的就推送）
+      aiResult = { isReal: true, relevance: 1, summary: item.content.slice(0, 100), reason: '' }
+    } else {
+      // 普通模式：AI 验证相关性
+      await new Promise(r => setTimeout(r, 5000))
+      aiResult = await verifyContent(monitor.keyword, item.title, item.content)
+      aiFailed = aiResult.relevance === 0 && !aiResult.isReal && aiResult.reason === 'AI 分析失败'
+      aiFiltered = !aiFailed && !aiResult.isReal && aiResult.relevance < 0.5
+    }
 
     await prisma.finding.create({
       data: {
@@ -58,25 +67,29 @@ export async function scanMonitor(monitorId: string): Promise<{ foundCount: numb
         aiScore: aiFailed ? -1 : aiResult.relevance,
         aiSummary: aiFailed
           ? `【待确认】${item.title.slice(0, 40)}`
-          : (aiResult.summary || aiResult.reason),
-        isNotified: true, // 无论 AI 结果如何，都标记为已通知
+          : (aiResult.summary || aiResult.reason || item.title),
+        isNotified: true,
       },
     })
 
-    // AI 明确判断为不相关：不通知
+    // AI 明确判断为不相关：不通知（账号模式不会触发此逻辑）
     if (aiFiltered) {
       console.log(`[Scheduler] Filtered (relevance=${aiResult.relevance.toFixed(2)}): ${item.title}`)
       continue
     }
 
-    // AI 验证通过 或 AI 失败（发"待确认"通知）
-    const notifTitle = aiFailed
-      ? `📌 "${monitor.keyword}" 新内容（待确认）`
-      : `🔥 "${monitor.keyword}" 新热点`
+    // 通知
+    const notifTitle = isAccount
+      ? `📢 ${monitor.keyword} 有新内容`
+      : aiFailed
+        ? `📌 "${monitor.keyword}" 新内容（待确认）`
+        : `🔥 "${monitor.keyword}" 新热点`
 
-    const notifBody = aiFailed
+    const notifBody = isAccount
       ? item.title
-      : (aiResult.summary || item.title)
+      : aiFailed
+        ? item.title
+        : (aiResult.summary || item.title)
 
     // 防止重复通知（同一 URL 24 小时内只通知一次）
     const existingNotif = await prisma.notification.findFirst({

@@ -6,16 +6,29 @@ const router = Router()
 // GET /api/notifications
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { page = '1', limit = '30' } = req.query
+    const { page = '1', limit = '30', unreadOnly, timeRange } = req.query
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
+
+    const where: any = {}
+
+    // 仅未读筛选
+    if (unreadOnly === 'true') where.isRead = false
+
+    // 时间范围筛选
+    if (timeRange && timeRange !== 'all') {
+      const hoursMap: Record<string, number> = { today: 24, '7d': 168 }
+      const hours = hoursMap[timeRange as string]
+      if (hours) where.createdAt = { gte: new Date(Date.now() - hours * 3600 * 1000) }
+    }
 
     const [notifications, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: parseInt(limit as string),
       }),
-      prisma.notification.count(),
+      prisma.notification.count({ where }),
       prisma.notification.count({ where: { isRead: false } }),
     ])
 

@@ -7,23 +7,61 @@ const router = Router()
 // GET /api/hotspots
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { domain, page = '1', limit = '30', sort = 'heat' } = req.query
+    const {
+      domain, page = '1', limit = '30', sort = 'heat',
+      source, heatLevel, timeRange, language,
+    } = req.query
+
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string)
 
     const where: any = {}
     if (domain) where.domain = domain
 
-    const [hotspots, total] = await Promise.all([
+    // 来源平台筛选
+    if (source && source !== 'all') where.source = source as string
+
+    // 热度段位筛选
+    if (heatLevel === 'high')   where.heatScore = { gte: 8 }
+    if (heatLevel === 'medium') where.heatScore = { gte: 5, lt: 8 }
+    if (heatLevel === 'low')    where.heatScore = { lt: 5 }
+
+    // 时间范围筛选（基于 createdAt）
+    if (timeRange && timeRange !== 'all') {
+      const hoursMap: Record<string, number> = { '6h': 6, today: 24, '48h': 48, '7d': 168 }
+      const hours = hoursMap[timeRange as string]
+      if (hours) where.createdAt = { gte: new Date(Date.now() - hours * 3600 * 1000) }
+    }
+
+    // 语言筛选（通过标题字符判断：含中文字符 → 中文，否则 → 英文）
+    // 此筛选在数据库层面无法精确处理，使用后处理方式
+    const isLanguageFilter = language && language !== 'all'
+
+    const orderBy =
+      sort === 'heat'        ? [{ heatScore: 'desc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'time'      ? { createdAt: 'desc' as const }
+      : sort === 'published' ? [{ publishedAt: 'desc' as const }, { createdAt: 'desc' as const }]
+      : sort === 'sources'   ? [{ sourceCount: 'desc' as const }, { heatScore: 'desc' as const }]
+      : [{ heatScore: 'desc' as const }, { createdAt: 'desc' as const }]
+
+    const [rawHotspots, total] = await Promise.all([
       prisma.hotSpot.findMany({
         where,
-        orderBy: sort === 'heat'
-          ? [{ heatScore: 'desc' }, { createdAt: 'desc' }]
-          : { createdAt: 'desc' },
-        skip,
-        take: parseInt(limit as string),
+        orderBy,
+        // 若有语言筛选多取一些，后处理过滤
+        skip: isLanguageFilter ? 0 : skip,
+        take: isLanguageFilter ? 500 : parseInt(limit as string),
       }),
       prisma.hotSpot.count({ where }),
     ])
+
+    let hotspots = rawHotspots
+    if (isLanguageFilter) {
+      const zhRegex = /[\u4e00-\u9fa5]/
+      hotspots = hotspots.filter(h =>
+        language === 'zh' ? zhRegex.test(h.title) : !zhRegex.test(h.title)
+      )
+      hotspots = hotspots.slice(skip, skip + parseInt(limit as string))
+    }
 
     res.json({ success: true, data: hotspots, total, page: parseInt(page as string) })
   } catch (err) {
