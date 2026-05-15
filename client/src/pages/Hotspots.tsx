@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, RefreshCw, CheckCheck, Bookmark, X, SlidersHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
+import { TrendingUp, RefreshCw, CheckCheck, Bookmark, X, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 import TopBar from '../components/layout/TopBar'
 import HotspotCard from '../components/hotspots/HotspotCard'
 import Button from '../components/ui/Button'
@@ -202,6 +202,7 @@ export default function Hotspots() {
   const [total,     setTotal]     = useState(0)
   const [page,      setPage]      = useState(1)
   const [showFilters, setShowFilters] = useState(false)
+  const [expandAllAi, setExpandAllAi] = useState(false)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -282,6 +283,12 @@ export default function Hotspots() {
         subtitle={`共 ${total} 条热点 · 第 ${page}/${totalPages} 页`}
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setExpandAllAi(v => !v)}>
+              {expandAllAi
+                ? <><ChevronsDownUp size={14} /> 折叠全部</>
+                : <><ChevronsUpDown size={14} /> 展开全部</>
+              }
+            </Button>
             <Button variant="ghost" size="sm" onClick={handleReadAll}>
               <CheckCheck size={14} /> 全部已读
             </Button>
@@ -412,7 +419,7 @@ export default function Hotspots() {
           <>
             <div className="grid grid-cols-2 gap-3">
               {hotspots.map((h, i) => (
-                <HotspotCard key={h.id} hotspot={h} onRefresh={() => load(page)} index={i} />
+                <HotspotCard key={h.id} hotspot={h} onRefresh={() => load(page)} index={i} expandAiReason={expandAllAi} />
               ))}
             </div>
 

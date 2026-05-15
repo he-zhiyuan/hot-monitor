@@ -16,6 +16,14 @@ export interface SourceItem {
   author: string
   publishedAt: Date
   source: string
+  /** 点赞数 / upvotes / points / stars */
+  likes?: number
+  /** 评论数 / replies */
+  comments?: number
+  /** 转发数 / retweets / forks / today-stars */
+  shares?: number
+  /** 播放量 / views（主要用于 Bilibili）/ 总星数（GitHub）*/
+  views?: number
   [key: string]: unknown
 }
 

@@ -37,6 +37,8 @@ export async function searchHackerNews(query: string, hoursBack = 24): Promise<H
         source: 'hackernews' as const,
         points: h.points || 0,
         numComments: h.num_comments || 0,
+        likes: h.points || 0,
+        comments: h.num_comments || 0,
       }))
   } catch (err) {
     console.error('[HackerNews] search error:', err)
@@ -67,6 +69,8 @@ export async function getHNTrending(query: string): Promise<HNItem[]> {
         source: 'hackernews' as const,
         points: h.points || 0,
         numComments: h.num_comments || 0,
+        likes: h.points || 0,
+        comments: h.num_comments || 0,
       }))
   } catch (err) {
     console.error('[HackerNews] trending error:', err)

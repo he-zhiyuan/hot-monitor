@@ -64,6 +64,10 @@ export async function scanMonitor(monitorId: string): Promise<{ foundCount: numb
         source: item.source,
         author: item.author || '',
         publishedAt: item.publishedAt,
+        likes: item.likes ?? null,
+        comments: item.comments ?? null,
+        shares: item.shares ?? null,
+        views: item.views ?? null,
         aiScore: aiFailed ? -1 : aiResult.relevance,
         aiSummary: aiFailed
           ? `【待确认】${item.title.slice(0, 40)}`
@@ -199,6 +203,10 @@ export async function discoverHotspots(): Promise<void> {
             domain,
             heatScore,
             publishedAt: item.publishedAt,
+            likes: item.likes ?? null,
+            comments: item.comments ?? null,
+            shares: item.shares ?? null,
+            views: item.views ?? null,
           },
         })
       }

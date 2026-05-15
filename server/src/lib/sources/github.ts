@@ -11,6 +11,8 @@ export interface GithubItem {
   stars: number
   todayStars: number
   language: string
+  likes?: number
+  views?: number
 }
 
 export async function getGithubTrending(language = '', since = 'daily'): Promise<GithubItem[]> {
@@ -66,6 +68,8 @@ export async function getGithubTrending(language = '', since = 'daily'): Promise
         stars: parseStars(starsText),
         todayStars,
         language,
+        likes: todayStars,
+        views: parseStars(starsText),
       })
     })
 

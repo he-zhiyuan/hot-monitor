@@ -20,6 +20,10 @@ export interface Finding {
   source: string
   author?: string
   publishedAt?: string
+  likes?: number
+  comments?: number
+  shares?: number
+  views?: number
   aiScore: number
   aiSummary: string
   isNotified: boolean
@@ -38,6 +42,10 @@ export interface HotSpot {
   sourceCount: number
   isRead: boolean
   isSaved: boolean
+  likes?: number
+  comments?: number
+  shares?: number
+  views?: number
   publishedAt?: string
   createdAt: string
 }

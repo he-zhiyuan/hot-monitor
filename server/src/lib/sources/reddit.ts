@@ -10,6 +10,8 @@ export interface RedditItem {
   score: number
   numComments: number
   subreddit: string
+  likes?: number
+  comments?: number
 }
 
 // AI / 编程领域高质量子版块
@@ -42,6 +44,8 @@ function mapPost(d: any): RedditItem {
     score: d.score || 0,
     numComments: d.num_comments || 0,
     subreddit: d.subreddit || '',
+    likes: d.score || 0,
+    comments: d.num_comments || 0,
   }
 }
 

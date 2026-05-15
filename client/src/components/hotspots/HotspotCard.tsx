@@ -1,5 +1,6 @@
-import { ExternalLink, Bookmark, BookmarkCheck, Flame, Globe } from 'lucide-react'
+import { ExternalLink, Bookmark, BookmarkCheck, Flame, Globe, User, Heart, MessageSquare, Share2, Eye, ChevronDown, ChevronUp, Calendar, Clock } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useState } from 'react'
 import type { HotSpot } from '../../types'
 import Badge from '../ui/Badge'
 import api from '../../lib/api'
@@ -8,6 +9,7 @@ interface Props {
   hotspot: HotSpot
   onRefresh: () => void
   index?: number
+  expandAiReason?: boolean
 }
 
 const sourceLabel: Record<string, string> = {
@@ -37,16 +39,10 @@ const sourceBadge: Record<string, 'cyan' | 'amber' | 'green' | 'gray' | 'red' | 
   sspai:      'amber',
 }
 
-/**
- * 格式化发布时间：
- * < 1h   → "X分钟前"
- * < 24h  → "X小时前"
- * < 7d   → "X天前"
- * else   → "M月D日 HH:mm"
- */
 function formatTime(dateStr?: string): { relative: string; absolute: string } {
-  if (!dateStr) return { relative: '时间未知', absolute: '' }
+  if (!dateStr) return { relative: '未知', absolute: '' }
   const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return { relative: '未知', absolute: '' }
   const diff = Date.now() - date.getTime()
   const mins  = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
@@ -67,7 +63,12 @@ function formatTime(dateStr?: string): { relative: string; absolute: string } {
   return { relative, absolute }
 }
 
-/** 圆环热度仪表 + 明显数值 */
+function formatNumber(n: number): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`
+  if (n >= 1000)  return `${(n / 1000).toFixed(1)}k`
+  return String(n)
+}
+
 function HeatDisplay({ score }: { score: number }) {
   const pct   = Math.min(1, score / 10)
   const size  = 44
@@ -85,7 +86,6 @@ function HeatDisplay({ score }: { score: number }) {
 
   return (
     <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
-      {/* 圆环 */}
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
           <circle cx={size / 2} cy={size / 2} r={r} fill="none"
@@ -104,7 +104,6 @@ function HeatDisplay({ score }: { score: number }) {
           {score % 1 === 0 ? score.toFixed(0) : score.toFixed(1)}
         </div>
       </div>
-      {/* 等级标签 */}
       <span className="text-[9px] font-mono font-semibold" style={{ color, opacity: 0.85 }}>
         {label}
       </span>
@@ -112,12 +111,19 @@ function HeatDisplay({ score }: { score: number }) {
   )
 }
 
-export default function HotspotCard({ hotspot, onRefresh, index = 0 }: Props) {
+export default function HotspotCard({ hotspot, onRefresh, index = 0, expandAiReason = false }: Props) {
+  const [aiExpanded, setAiExpanded] = useState(false)
+  const isAiExpanded = expandAiReason || aiExpanded
+
   const isHot  = hotspot.heatScore >= 8
   const isWarm = hotspot.heatScore >= 6
 
-  const time = formatTime(hotspot.publishedAt || hotspot.createdAt)
+  const publishTime = formatTime(hotspot.publishedAt)
+  const captureTime = formatTime(hotspot.createdAt)
   const hasPublishedAt = !!hotspot.publishedAt
+
+  const hasEngagement = [hotspot.likes, hotspot.comments, hotspot.shares, hotspot.views].some(v => v != null)
+  const hasAuthor = !!hotspot.author
 
   const toggleSave = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -159,32 +165,40 @@ export default function HotspotCard({ hotspot, onRefresh, index = 0 }: Props) {
       }}
     >
       <div className="p-4">
-        {/* ── 顶部：来源 + 域名 + 时间 ── */}
-        <div className="flex items-start justify-between gap-2 mb-2.5">
-          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-            <Badge variant={sourceBadge[hotspot.source] ?? 'gray'}>
-              {sourceLabel[hotspot.source] ?? hotspot.source}
-            </Badge>
-            {hotspot.domain && (
-              <Badge variant="ghost">{hotspot.domain}</Badge>
-            )}
-            {!hotspot.isRead && (
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse-slow flex-shrink-0" />
-            )}
-          </div>
-
-          {/* 时间：悬浮显示精确时间 */}
-          <div
-            className="flex-shrink-0 text-right cursor-default"
-            title={time.absolute}
-          >
-            <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap">
-              {time.relative}
+        {/* ── 顶部：来源 + 域名 + 未读点 + 作者 ── */}
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          <Badge variant={sourceBadge[hotspot.source] ?? 'gray'}>
+            {sourceLabel[hotspot.source] ?? hotspot.source}
+          </Badge>
+          {hotspot.domain && (
+            <Badge variant="ghost">{hotspot.domain}</Badge>
+          )}
+          {!hotspot.isRead && (
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse-slow flex-shrink-0" />
+          )}
+          {hasAuthor && (
+            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-mono ml-auto">
+              <User size={9} className="flex-shrink-0" />
+              <span className="max-w-[100px] truncate">{hotspot.author}</span>
             </span>
-            {!hasPublishedAt && (
-              <span className="text-[9px] text-slate-700 font-mono block">入库时间</span>
-            )}
-          </div>
+          )}
+        </div>
+
+        {/* ── 双时间行 ── */}
+        <div className="flex items-center gap-3 mb-2.5">
+          {hasPublishedAt && (
+            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-mono" title={publishTime.absolute}>
+              <Calendar size={9} className="text-slate-600 flex-shrink-0" />
+              发布 {publishTime.relative}
+            </span>
+          )}
+          <span
+            className={`flex items-center gap-1 text-[10px] font-mono ${hasPublishedAt ? 'text-slate-600' : 'text-slate-500'}`}
+            title={captureTime.absolute}
+          >
+            <Clock size={9} className="flex-shrink-0" />
+            抓取 {captureTime.relative}
+          </span>
         </div>
 
         {/* ── 主体：标题 + 热度仪表 ── */}
@@ -193,17 +207,69 @@ export default function HotspotCard({ hotspot, onRefresh, index = 0 }: Props) {
             <h3 className="text-[13px] font-semibold text-slate-200 mb-1.5 line-clamp-2 leading-snug">
               {hotspot.title}
             </h3>
-            {hotspot.summary && (
-              <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                {hotspot.summary}
-              </p>
-            )}
           </div>
           <HeatDisplay score={hotspot.heatScore} />
         </div>
 
+        {/* ── AI 摘要（可展开/折叠）── */}
+        {hotspot.summary && (
+          <div className="mb-2.5">
+            <div
+              className={`text-[11px] text-slate-500 leading-relaxed ${isAiExpanded ? '' : 'line-clamp-2'}`}
+            >
+              {hotspot.summary}
+            </div>
+            {/* 全局展开时隐藏单卡按钮（控制权归全局），全局关闭时显示单卡开关 */}
+            {hotspot.summary.length > 100 && !expandAiReason && (
+              <button
+                onClick={e => { e.stopPropagation(); setAiExpanded(v => !v) }}
+                className="flex items-center gap-1 text-[10px] font-mono mt-1 transition-colors"
+                style={{ color: aiExpanded ? '#22d3ee' : '#475569' }}
+              >
+                {aiExpanded ? <><ChevronUp size={9} /> 收起</> : <><ChevronDown size={9} /> 展开分析</>}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ── 互动数据行 ── */}
+        {hasEngagement && (
+          <div className="flex items-center gap-3 mb-2.5 py-1.5 px-2 rounded-lg"
+            style={{ background: 'rgba(255,255,255,0.03)' }}
+          >
+            {hotspot.likes != null && (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                <Heart size={9} className="text-rose-500/60" />
+                {formatNumber(hotspot.likes)}
+              </span>
+            )}
+            {hotspot.comments != null && (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                <MessageSquare size={9} className="text-sky-500/60" />
+                {formatNumber(hotspot.comments)}
+              </span>
+            )}
+            {hotspot.shares != null && (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                <Share2 size={9} className="text-violet-500/60" />
+                {formatNumber(hotspot.shares)}
+              </span>
+            )}
+            {hotspot.views != null && (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                <Eye size={9} className="text-emerald-500/60" />
+                {formatNumber(hotspot.views)}
+              </span>
+            )}
+            {/* GitHub 特殊标注 */}
+            {hotspot.source === 'github' && hotspot.likes != null && (
+              <span className="text-[9px] font-mono text-slate-700 ml-auto">今日 ⭐</span>
+            )}
+          </div>
+        )}
+
         {/* ── 底部：热度 badge + 多源数 + 操作 ── */}
-        <div className="flex items-center justify-between pt-2.5"
+        <div className="flex items-center justify-between pt-2"
           style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
         >
           <div className="flex items-center gap-2">
@@ -212,14 +278,14 @@ export default function HotspotCard({ hotspot, onRefresh, index = 0 }: Props) {
                 <Flame size={10} className="animate-pulse-slow" /> TRENDING
               </span>
             )}
-            {hotspot.sourceCount > 1 && (
-              <span className="flex items-center gap-1 text-[10px] font-mono"
-                style={{ color: hotspot.sourceCount >= 3 ? '#fbbf24' : '#475569' }}
-              >
-                <Globe size={9} />
-                {hotspot.sourceCount} 源
-              </span>
-            )}
+            <span
+              className="flex items-center gap-1 text-[10px] font-mono"
+              title={`来自 ${hotspot.sourceCount} 个不同来源`}
+              style={{ color: hotspot.sourceCount >= 3 ? '#fbbf24' : hotspot.sourceCount >= 2 ? '#64748b' : '#334155' }}
+            >
+              <Globe size={9} />
+              {hotspot.sourceCount} 源
+            </span>
           </div>
 
           <div className="flex items-center gap-1">

@@ -9,6 +9,7 @@ export interface BilibiliItem {
   source: 'bilibili'
   views: number
   likes: number
+  comments?: number
 }
 
 const BASE_HEADERS = {
@@ -94,6 +95,7 @@ export async function searchBilibili(keyword: string): Promise<BilibiliItem[]> {
         source: 'bilibili' as const,
         views: v.play || 0,
         likes: v.like || 0,
+        comments: v.review || 0,
       }))
   } catch (err) {
     console.error('[Bilibili] search error:', (err as any)?.message)
@@ -178,6 +180,7 @@ export async function searchBilibiliUser(username: string): Promise<BilibiliItem
         source: 'bilibili' as const,
         views: v.play || 0,
         likes: v.like || 0,
+        comments: v.review || 0,
       }))
   } catch (err) {
     console.error('[Bilibili] user search error:', (err as any)?.message)

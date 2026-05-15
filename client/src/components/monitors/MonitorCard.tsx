@@ -1,4 +1,4 @@
-import { Pause, Play, Trash2, Zap, Clock, FileSearch, Loader2, Radar } from 'lucide-react'
+import { Pause, Play, Trash2, Zap, Clock, FileSearch, Loader2, Radar, CalendarPlus } from 'lucide-react'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import type { Monitor } from '../../types'
@@ -121,13 +121,17 @@ export default function MonitorCard({ monitor, onRefresh, onClick, index = 0 }: 
             <FileSearch size={10} />
             {monitor._count?.findings ?? 0} findings
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" title="上次检查时间">
             <Clock size={10} />
             {timeAgo(monitor.lastChecked)}
           </span>
           <span className="flex items-center gap-1">
             <Zap size={10} />
-            {monitor.intervalMin}m interval
+            {monitor.intervalMin}m
+          </span>
+          <span className="flex items-center gap-1 ml-auto" title={`创建于 ${new Date(monitor.createdAt).toLocaleString('zh-CN')}`}>
+            <CalendarPlus size={10} />
+            {timeAgo(monitor.createdAt)}
           </span>
         </div>
 

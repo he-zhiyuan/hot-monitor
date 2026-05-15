@@ -114,7 +114,7 @@ export default function Notifications() {
         </div>
 
         {loading ? (
-          <Card className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          <Card className="divide-y divide-white/[0.05]">
             {Array(5).fill(0).map((_, i) => (
               <div key={i} className="px-6 py-4">
                 <div className="shimmer h-4 rounded w-3/4 mb-2" />

@@ -59,6 +59,9 @@ export async function searchTwitter(query: string, hoursBack = 6): Promise<Twitt
         likeCount: t.likeCount || 0,
         retweetCount: t.retweetCount || 0,
         viewCount: t.viewCount || 0,
+        likes: t.likeCount || 0,
+        shares: t.retweetCount || 0,
+        views: t.viewCount || 0,
       }))
   } catch (err: any) {
     console.error('[Twitter] search error:', err?.response?.data || err?.message)
@@ -95,6 +98,9 @@ export async function getTwitterTrending(query: string): Promise<TwitterItem[]> 
         likeCount: t.likeCount || 0,
         retweetCount: t.retweetCount || 0,
         viewCount: t.viewCount || 0,
+        likes: t.likeCount || 0,
+        shares: t.retweetCount || 0,
+        views: t.viewCount || 0,
       }))
   } catch (err: any) {
     console.error('[Twitter] trending error:', err?.response?.data || err?.message)

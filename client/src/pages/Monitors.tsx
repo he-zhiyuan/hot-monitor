@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Plus, Radar, Search } from 'lucide-react'
+import { Plus, Radar, Search, ChevronsDownUp, ChevronsUpDown, Calendar, Clock, User, Heart, MessageSquare, Share2, Eye, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import TopBar from '../components/layout/TopBar'
 import MonitorCard from '../components/monitors/MonitorCard'
 import AddMonitorModal from '../components/monitors/AddMonitorModal'
@@ -47,6 +47,9 @@ export default function Monitors() {
   const [findingSort,      setFindingSort]      = useState('time')
   const [findingSource,    setFindingSource]    = useState('all')
   const [findingThreshold, setFindingThreshold] = useState('all')
+  const [expandAllAi,      setExpandAllAi]      = useState(false)
+  const [expandedAiSet,    setExpandedAiSet]    = useState<Set<string>>(new Set())
+  const [expandedContentSet, setExpandedContentSet] = useState<Set<string>>(new Set())
 
   const load = async () => {
     setLoading(true)
@@ -63,10 +66,38 @@ export default function Monitors() {
     setFindingSort('time')
     setFindingSource('all')
     setFindingThreshold('all')
+    setExpandAllAi(false)
+    setExpandedAiSet(new Set())
+    setExpandedContentSet(new Set())
     setFindingsLoading(true)
     const res = await api.get(`/monitors/${monitor.id}/findings`)
     setFindings(res.data)
     setFindingsLoading(false)
+  }
+
+  const toggleAiExpand = (id: string) => {
+    setExpandedAiSet(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleContentExpand = (id: string) => {
+    setExpandedContentSet(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleToggleAllAi = () => {
+    if (expandAllAi) {
+      setExpandAllAi(false)
+      setExpandedAiSet(new Set())
+    } else {
+      setExpandAllAi(true)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -199,6 +230,19 @@ export default function Monitors() {
                 ))}
               </div>
 
+              {/* 一键展开/折叠所有 AI 理由 */}
+              <button
+                onClick={handleToggleAllAi}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-mono transition-all"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  background: expandAllAi ? 'rgba(34,211,238,0.08)' : 'rgba(255,255,255,0.02)',
+                  color: expandAllAi ? '#22d3ee' : '#475569',
+                }}
+              >
+                {expandAllAi ? <><ChevronsDownUp size={10} /> 折叠分析</> : <><ChevronsUpDown size={10} /> 展开分析</>}
+              </button>
+
               {/* 结果计数 */}
               <span className="text-[10px] text-slate-600 font-mono ml-auto">
                 {filteredFindings.length} / {findings.length} 条
@@ -211,32 +255,149 @@ export default function Monitors() {
                 <p className="text-slate-600 text-xs font-mono">当前筛选条件下无记录</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                {filteredFindings.map(f => (
-                  <div key={f.id}
-                    className="rounded-xl p-4 border"
-                    style={{ background: 'rgba(255,255,255,0.025)', borderColor: 'rgba(255,255,255,0.07)' }}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={f.isNotified ? 'green' : 'gray'}>{f.isNotified ? '已推送' : '未触发'}</Badge>
-                      <Badge variant="gray">{f.source}</Badge>
-                      <span
-                        className="text-[10px] ml-auto font-mono font-semibold"
-                        style={{ color: f.aiScore >= 0.7 ? '#22d3ee' : f.aiScore >= 0.5 ? '#fbbf24' : '#475569' /* 原始值 0-1，显示时 ×10 */ }}
-                      >
-                        AI {(f.aiScore * 10).toFixed(1)}
-                      </span>
-                    </div>
-                    <a href={f.url} target="_blank" rel="noopener noreferrer"
-                      className="text-sm text-slate-300 hover:text-cyan-400 transition-colors line-clamp-2 font-medium"
+              <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                {filteredFindings.map(f => {
+                  const isAiExpanded = expandAllAi || expandedAiSet.has(f.id)
+                  const isContentExpanded = expandedContentSet.has(f.id)
+                  const publishTime = f.publishedAt ? new Date(f.publishedAt) : null
+                  const captureTime = new Date(f.createdAt)
+                  const hasEngagement = (f.likes ?? f.comments ?? f.shares ?? f.views) != null
+
+                  const fmtTime = (d: Date) => d.toLocaleString('zh-CN', {
+                    month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', hour12: false,
+                  })
+                  const relTime = (d: Date) => {
+                    const diff = Date.now() - d.getTime()
+                    const h = Math.floor(diff / 3600000)
+                    const day = Math.floor(diff / 86400000)
+                    if (h < 1) return `${Math.floor(diff / 60000)}分钟前`
+                    if (h < 24) return `${h}小时前`
+                    if (day < 7) return `${day}天前`
+                    return fmtTime(d)
+                  }
+                  const formatN = (n: number) => n >= 10000 ? `${(n/10000).toFixed(1)}w` : n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n)
+
+                  return (
+                    <div key={f.id}
+                      className="rounded-xl p-4 border"
+                      style={{ background: 'rgba(255,255,255,0.025)', borderColor: 'rgba(255,255,255,0.07)' }}
                     >
-                      {f.title}
-                    </a>
-                    {f.aiSummary && (
-                      <p className="text-xs text-slate-500 mt-1.5">{f.aiSummary}</p>
-                    )}
-                  </div>
-                ))}
+                      {/* 顶部：状态 + 来源 + 作者 + AI分数 */}
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge variant={f.isNotified ? 'green' : 'gray'}>{f.isNotified ? '已推送' : '未触发'}</Badge>
+                        <Badge variant="gray">{f.source}</Badge>
+                        {f.author && (
+                          <span className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                            <User size={9} />
+                            <span className="max-w-[80px] truncate">{f.author}</span>
+                          </span>
+                        )}
+                        <span
+                          className="text-[10px] ml-auto font-mono font-semibold"
+                          style={{ color: f.aiScore >= 0.7 ? '#22d3ee' : f.aiScore >= 0.5 ? '#fbbf24' : '#475569' }}
+                        >
+                          相关性 {(f.aiScore * 10).toFixed(1)}
+                        </span>
+                      </div>
+
+                      {/* 标题链接 */}
+                      <a href={f.url} target="_blank" rel="noopener noreferrer"
+                        className="text-sm text-slate-300 hover:text-cyan-400 transition-colors line-clamp-2 font-medium block mb-2"
+                      >
+                        {f.title}
+                      </a>
+
+                      {/* 双时间行 */}
+                      <div className="flex items-center gap-3 mb-2">
+                        {publishTime && (
+                          <span className="flex items-center gap-1 text-[10px] text-slate-500 font-mono" title={fmtTime(publishTime)}>
+                            <Calendar size={9} className="text-slate-600" />
+                            发布 {relTime(publishTime)}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-[10px] text-slate-600 font-mono" title={fmtTime(captureTime)}>
+                          <Clock size={9} />
+                          抓取 {relTime(captureTime)}
+                        </span>
+                      </div>
+
+                      {/* 互动数据 */}
+                      {hasEngagement && (
+                        <div className="flex items-center gap-3 mb-2 py-1.5 px-2 rounded-lg"
+                          style={{ background: 'rgba(255,255,255,0.03)' }}
+                        >
+                          {f.likes != null && (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                              <Heart size={9} className="text-rose-500/60" />{formatN(f.likes)}
+                            </span>
+                          )}
+                          {f.comments != null && (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                              <MessageSquare size={9} className="text-sky-500/60" />{formatN(f.comments)}
+                            </span>
+                          )}
+                          {f.shares != null && (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                              <Share2 size={9} className="text-violet-500/60" />{formatN(f.shares)}
+                            </span>
+                          )}
+                          {f.views != null && (
+                            <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                              <Eye size={9} className="text-emerald-500/60" />{formatN(f.views)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* AI 分析理由（可展开/折叠） */}
+                      {f.aiSummary && (
+                        <div className="mb-2">
+                          <div className={`text-xs text-slate-500 leading-relaxed rounded-lg px-2.5 py-2 ${isAiExpanded ? '' : 'line-clamp-2'}`}
+                            style={{ background: 'rgba(124,58,237,0.06)', borderLeft: '2px solid rgba(124,58,237,0.25)' }}
+                          >
+                            {f.aiSummary}
+                          </div>
+                          {/* 全局展开时隐藏单条按钮，全局关闭时显示 */}
+                          {f.aiSummary.length > 80 && !expandAllAi && (
+                            <button
+                              onClick={() => toggleAiExpand(f.id)}
+                              className="flex items-center gap-1 text-[10px] font-mono mt-1 transition-colors"
+                              style={{ color: expandedAiSet.has(f.id) ? '#22d3ee' : '#475569' }}
+                            >
+                              {expandedAiSet.has(f.id)
+                                ? <><ChevronUp size={9} /> 收起</>
+                                : <><ChevronDown size={9} /> 展开 AI 分析</>
+                              }
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 原始内容预览（可展开/折叠） */}
+                      {f.content && f.content !== f.title && (
+                        <div>
+                          <button
+                            onClick={() => toggleContentExpand(f.id)}
+                            className="flex items-center gap-1 text-[10px] font-mono transition-colors mb-1"
+                            style={{ color: isContentExpanded ? '#22d3ee' : '#475569' }}
+                          >
+                            <FileText size={9} />
+                            {isContentExpanded ? '收起原文' : '查看原始内容'}
+                            {isContentExpanded ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
+                          </button>
+                          {isContentExpanded && (
+                            <div className="text-[11px] text-slate-600 leading-relaxed rounded-lg px-2.5 py-2 font-mono whitespace-pre-wrap"
+                              style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)' }}
+                            >
+                              {f.content.slice(0, 800)}{f.content.length > 800 ? '…' : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

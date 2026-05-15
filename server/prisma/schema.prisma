@@ -31,6 +31,10 @@ model Finding {
   source      String
   author      String?
   publishedAt DateTime?
+  likes       Int?
+  comments    Int?
+  shares      Int?
+  views       Int?
   aiScore     Float    @default(0)
   aiSummary   String   @default("")
   isNotified  Boolean  @default(false)
@@ -50,6 +54,10 @@ model HotSpot {
   sourceCount Int      @default(1)
   isRead      Boolean  @default(false)
   isSaved     Boolean  @default(false)
+  likes       Int?
+  comments    Int?
+  shares      Int?
+  views       Int?
   publishedAt DateTime?
   createdAt   DateTime @default(now())
 }

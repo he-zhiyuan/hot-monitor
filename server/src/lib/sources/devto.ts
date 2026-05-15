@@ -9,6 +9,8 @@ export interface DevToItem {
   source: 'devto'
   reactions: number
   tags: string[]
+  likes?: number
+  comments?: number
 }
 
 const BASE = 'https://dev.to/api'
@@ -26,6 +28,8 @@ function mapArticle(a: any): DevToItem {
     source: 'devto' as const,
     reactions: a.public_reactions_count || 0,
     tags: a.tag_list || [],
+    likes: a.public_reactions_count || 0,
+    comments: a.comments_count || 0,
   }
 }
 
