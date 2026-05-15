@@ -285,8 +285,8 @@ export default function Hotspots() {
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => setExpandAllAi(v => !v)}>
               {expandAllAi
-                ? <><ChevronsDownUp size={14} /> 折叠全部</>
-                : <><ChevronsUpDown size={14} /> 展开全部</>
+                ? <><ChevronsDownUp size={14} /> 折叠 AI 分析</>
+                : <><ChevronsUpDown size={14} /> 展开 AI 分析</>
               }
             </Button>
             <Button variant="ghost" size="sm" onClick={handleReadAll}>

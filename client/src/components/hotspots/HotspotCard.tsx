@@ -211,22 +211,27 @@ export default function HotspotCard({ hotspot, onRefresh, index = 0, expandAiRea
           <HeatDisplay score={hotspot.heatScore} />
         </div>
 
-        {/* ── AI 摘要（可展开/折叠）── */}
+        {/* ── AI 摘要：默认隐藏，点击或全局展开后显示 ── */}
         {hotspot.summary && (
           <div className="mb-2.5">
-            <div
-              className={`text-[11px] text-slate-500 leading-relaxed ${isAiExpanded ? '' : 'line-clamp-2'}`}
-            >
-              {hotspot.summary}
-            </div>
+            {isAiExpanded && (
+              <div className="text-[11px] text-slate-500 leading-relaxed rounded-lg px-2.5 py-2 mb-1"
+                style={{ background: 'rgba(255,255,255,0.02)', borderLeft: '2px solid rgba(255,255,255,0.08)' }}
+              >
+                {hotspot.summary}
+              </div>
+            )}
             {/* 全局展开时隐藏单卡按钮（控制权归全局），全局关闭时显示单卡开关 */}
-            {hotspot.summary.length > 100 && !expandAiReason && (
+            {!expandAiReason && (
               <button
                 onClick={e => { e.stopPropagation(); setAiExpanded(v => !v) }}
-                className="flex items-center gap-1 text-[10px] font-mono mt-1 transition-colors"
+                className="flex items-center gap-1 text-[10px] font-mono transition-colors"
                 style={{ color: aiExpanded ? '#22d3ee' : '#475569' }}
               >
-                {aiExpanded ? <><ChevronUp size={9} /> 收起</> : <><ChevronDown size={9} /> 展开分析</>}
+                {aiExpanded
+                  ? <><ChevronUp size={9} /> 收起分析</>
+                  : <><ChevronDown size={9} /> 查看 AI 分析</>
+                }
               </button>
             )}
           </div>

@@ -350,24 +350,26 @@ export default function Monitors() {
                         </div>
                       )}
 
-                      {/* AI 分析理由（可展开/折叠） */}
+                      {/* AI 分析理由：默认隐藏，单条/全局展开后显示 */}
                       {f.aiSummary && (
                         <div className="mb-2">
-                          <div className={`text-xs text-slate-500 leading-relaxed rounded-lg px-2.5 py-2 ${isAiExpanded ? '' : 'line-clamp-2'}`}
-                            style={{ background: 'rgba(124,58,237,0.06)', borderLeft: '2px solid rgba(124,58,237,0.25)' }}
-                          >
-                            {f.aiSummary}
-                          </div>
+                          {isAiExpanded && (
+                            <div className="text-xs text-slate-500 leading-relaxed rounded-lg px-2.5 py-2 mb-1"
+                              style={{ background: 'rgba(124,58,237,0.06)', borderLeft: '2px solid rgba(124,58,237,0.25)' }}
+                            >
+                              {f.aiSummary}
+                            </div>
+                          )}
                           {/* 全局展开时隐藏单条按钮，全局关闭时显示 */}
-                          {f.aiSummary.length > 80 && !expandAllAi && (
+                          {!expandAllAi && (
                             <button
                               onClick={() => toggleAiExpand(f.id)}
-                              className="flex items-center gap-1 text-[10px] font-mono mt-1 transition-colors"
+                              className="flex items-center gap-1 text-[10px] font-mono transition-colors"
                               style={{ color: expandedAiSet.has(f.id) ? '#22d3ee' : '#475569' }}
                             >
                               {expandedAiSet.has(f.id)
-                                ? <><ChevronUp size={9} /> 收起</>
-                                : <><ChevronDown size={9} /> 展开 AI 分析</>
+                                ? <><ChevronUp size={9} /> 收起分析</>
+                                : <><ChevronDown size={9} /> 查看 AI 分析</>
                               }
                             </button>
                           )}
