@@ -12,6 +12,7 @@
 | 通知中心 | 站内通知历史，支持 Socket.IO 实时推送 + 邮件 |
 | 10 大数据源 | 国际 + 国内全覆盖，无需 API Key 即可运行 |
 | AI 过滤 | EasyRouter/OpenRouter：真实性 + 实体匹配 + 可配置相关度阈值 |
+| **Cursor Agent Skill** | 对话内即时搜热点 / 查博主，Python CLI + Agent 验证，无需启动 Web |
 
 ## 数据源
 
@@ -88,6 +89,25 @@ npm run dev
 - 前端：http://localhost:5173
 - 后端 API：http://localhost:3001
 
+## Cursor Agent Skill（可选）
+
+在 Cursor 中可直接用 **hot-monitor** Skill 做即时查询（不依赖本仓库 Web 服务）：
+
+| 场景 | 说明 |
+|------|------|
+| 关键词热点 | 多源搜索 + 本地预筛 + Agent 输出推送建议 |
+| 博主今日内容 | `search_creator.py`（编程导航等，见 `creators.yaml`） |
+| 持久化监控 | 仍使用下方 Web 应用（DB、定时任务、通知） |
+
+```bash
+cd .cursor/skills/hot-monitor
+python -m venv .venv && .venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+python scripts/search.py "Codex" --json --prefilter --out result.json
+```
+
+详细说明见 [.cursor/skills/hot-monitor/README.md](.cursor/skills/hot-monitor/README.md)。
+
 ## 账号监控模式
 
 关键词以 `@` 开头时进入账号模式：
@@ -108,6 +128,11 @@ npm run dev
 
 ```
 hot-monitor/
+├── .cursor/skills/hot-monitor/  # Cursor Agent Skill（Python CLI，与 server 独立）
+│   ├── SKILL.md
+│   ├── scripts/              # search / trending / search_creator
+│   └── rules/keyword_match.py
+├── docs/                     # PRD、架构文档
 ├── server/src/lib/sources/   # 数据源适配器（10个）
 │   ├── twitter.ts            # Twitter/X（可选，含质量过滤）
 │   ├── hackernews.ts         # Hacker News Algolia API

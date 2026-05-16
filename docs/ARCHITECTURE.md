@@ -1,6 +1,6 @@
 # HotMonitor - 技术架构文档
 
-**版本**：v1.3  
+**版本**：v1.4  
 **更新**：2026-05-16
 
 ---
@@ -154,6 +154,13 @@ GET https://sspai.com/feed   （少数派）
 
 ```
 hot-monitor/
+├── .cursor/skills/hot-monitor/   # Agent Skill（见下文第十章）
+│   ├── SKILL.md
+│   ├── scripts/                  # search.py, trending.py, search_creator.py
+│   ├── scripts/lib/              # 9 源适配器（Python，无 Twitter）
+│   ├── rules/keyword_match.py
+│   ├── creators.yaml
+│   └── eval/
 ├── docs/
 │   ├── PRD.md
 │   └── ARCHITECTURE.md
@@ -538,4 +545,48 @@ npm run eval:verify:ai    # 含 verifyContent，需 EASYROUTER 或 OPENROUTER Ke
 | Phase 8 | 国内源扩展（百度 + B站 + 36氪 + 少数派）+ 账号监控模式 | ✅ 完成 |
 | Phase 9 | 全局时间新鲜度过滤 + 超时优化 + 数据源测试工具 | ✅ 完成 |
 | Phase 10 | Query expansion + 分层相关性审核 + eval 回归 + 推送阈值 | ✅ 完成 |
-| Phase 11 | Agent Skills 封装 | 待定 |
+| Phase 11 | Agent Skills 封装（`.cursor/skills/hot-monitor/`） | ✅ 完成 |
+
+---
+
+## 十、Cursor Agent Skill
+
+与 Web 应用**并行、代码独立**：Skill 不 import `server/`，逻辑从 `server/src/lib/sources/*` 与 `keyword-match.ts` 移植为 Python。
+
+### 10.1 定位对比
+
+| 维度 | Web 应用（server + client） | Agent Skill |
+|------|---------------------------|-------------|
+| 运行方式 | `npm run dev`，常驻 + cron | Cursor 对话中按需执行 CLI |
+| 数据持久化 | SQLite（Monitor / Finding / HotSpot） | 无，JSON 输出 |
+| AI 验证 | EasyRouter / OpenRouter API | **Cursor Agent** 按 `SKILL.md` 模板判定 |
+| Twitter | 可选（twitterapi.io） | **未实现**（9 源） |
+| 通知 | Socket.IO + 邮件 | 对话内 Markdown 报告 |
+| 典型场景 | 7×24 监控、历史记录 | 即时搜热点、博主今日摘要 |
+
+### 10.2 目录与命令
+
+```
+.cursor/skills/hot-monitor/
+├── SKILL.md              # Agent 工作流与 Verify/Heat 模板
+├── scripts/search.py     # 关键词 / @账号
+├── scripts/trending.py   # 领域热点
+├── scripts/search_creator.py  # creators.yaml 博主
+└── scripts/test_sources.py
+```
+
+```bash
+cd .cursor/skills/hot-monitor
+pip install -r requirements.txt
+python scripts/search.py "Codex" --json --prefilter --out result.json
+python scripts/search_creator.py 程序员鱼皮 --today-only --tag AI --json
+```
+
+### 10.3 Skill 特有能力
+
+- `--prefilter`：本地 `keyword_match` 预筛，JSON 含 `localPass`
+- `--sources`：部分源并行（国内网络友好）
+- `--creator` / `creators.yaml`：编程导航、鱼皮 AI 导航（B 站 API 风控时的兜底）
+- `warnings` 字段：源失败原因（如 B 站非 JSON）
+
+维护说明：server 适配器变更时，需**手工同步** `scripts/lib/` 对应文件；详见 Skill 内 `README.md`。

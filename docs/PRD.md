@@ -2,7 +2,7 @@
 
 ## 产品需求文档（PRD）
 
-**版本**：v1.2  
+**版本**：v1.3  
 **更新**：2026-05-16  
 **作者**：AI 编程博主工具项目
 
@@ -126,9 +126,9 @@
 - 实时推送（Socket.IO）+ 邮件通知
 - Web 仪表板 UI（深色玻璃拟态）
 - Twitter 质量过滤优化
+- **Cursor Agent Skill**（`.cursor/skills/hot-monitor/`）：Python 多源 CLI + Agent 侧验证；支持博主摘要（`creators.yaml`）；不替代 Web 的持久化与通知
 
 **不包含（后续迭代）**：
-- Agent Skills 封装
 - 多用户支持
 - 微信通知
 - 移动 App
