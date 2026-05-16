@@ -4,6 +4,9 @@ export interface Monitor {
   description?: string
   isActive: boolean
   intervalMin: number
+  /** 0–1，低于则不推送 */
+  minRelevance?: number
+  queryExpansion?: string | null
   lastChecked?: string
   createdAt: string
   updatedAt: string
@@ -26,6 +29,8 @@ export interface Finding {
   views?: number
   aiScore: number
   aiSummary: string
+  /** 理由、匹配层级、依据摘录 */
+  aiReason?: string
   isNotified: boolean
   createdAt: string
 }

@@ -240,7 +240,7 @@ export default function Monitors() {
                   color: expandAllAi ? '#22d3ee' : '#475569',
                 }}
               >
-                {expandAllAi ? <><ChevronsDownUp size={10} /> 折叠分析</> : <><ChevronsUpDown size={10} /> 展开分析</>}
+                {expandAllAi ? <><ChevronsDownUp size={10} /> 折叠分析</> : <><ChevronsUpDown size={10} /> 展开摘要与判定</>}
               </button>
 
               {/* 结果计数 */}
@@ -351,13 +351,28 @@ export default function Monitors() {
                       )}
 
                       {/* AI 分析理由：默认隐藏，单条/全局展开后显示 */}
-                      {f.aiSummary && (
+                      {(f.aiSummary || f.aiReason) && (
                         <div className="mb-2">
                           {isAiExpanded && (
-                            <div className="text-xs text-slate-500 leading-relaxed rounded-lg px-2.5 py-2 mb-1"
-                              style={{ background: 'rgba(124,58,237,0.06)', borderLeft: '2px solid rgba(124,58,237,0.25)' }}
-                            >
-                              {f.aiSummary}
+                            <div className="space-y-2">
+                              {f.aiSummary && (
+                              <div
+                                className="text-xs text-slate-300 leading-relaxed rounded-lg px-2.5 py-2"
+                                style={{ background: 'rgba(34,211,238,0.06)', borderLeft: '2px solid rgba(34,211,238,0.25)' }}
+                              >
+                                <span className="text-[10px] font-mono text-cyan-600/90 block mb-1">摘要</span>
+                                {f.aiSummary}
+                              </div>
+                              )}
+                              {f.aiReason && (
+                                <div
+                                  className="text-xs text-slate-500 leading-relaxed rounded-lg px-2.5 py-2"
+                                  style={{ background: 'rgba(124,58,237,0.06)', borderLeft: '2px solid rgba(124,58,237,0.25)' }}
+                                >
+                                  <span className="text-[10px] font-mono text-violet-400/80 block mb-1">判定</span>
+                                  <span className="whitespace-pre-wrap">{f.aiReason}</span>
+                                </div>
+                              )}
                             </div>
                           )}
                           {/* 全局展开时隐藏单条按钮，全局关闭时显示 */}
@@ -369,7 +384,7 @@ export default function Monitors() {
                             >
                               {expandedAiSet.has(f.id)
                                 ? <><ChevronUp size={9} /> 收起分析</>
-                                : <><ChevronDown size={9} /> 查看 AI 分析</>
+                                : <><ChevronDown size={9} /> 查看 AI 摘要与判定</>
                               }
                             </button>
                           )}

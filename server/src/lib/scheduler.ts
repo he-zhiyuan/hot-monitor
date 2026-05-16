@@ -1,7 +1,8 @@
 import cron from 'node-cron'
 import { prisma } from './prisma'
 import { aggregateSearch, aggregateTrending } from './sources'
-import { verifyContent, scoreHotspots } from './openrouter'
+import { expandMonitorKeyword, verifyContent, scoreHotspots, type AIVerifyResult } from './openrouter'
+import { defaultMinRelevanceFromEnv } from './monitor-thresholds'
 import { sendNotificationEmail } from './email'
 import { pushNotification } from './socket'
 
@@ -39,21 +40,67 @@ export async function scanMonitor(monitorId: string): Promise<{ foundCount: numb
 
   let notifiedCount = 0
 
+  const minRel =
+    typeof monitor.minRelevance === 'number' && Number.isFinite(monitor.minRelevance)
+      ? monitor.minRelevance
+      : defaultMinRelevanceFromEnv()
+
+  let queryExpansionJson = monitor.queryExpansion
+  if (!isAccount && !queryExpansionJson?.trim()) {
+    const exp = await expandMonitorKeyword(monitor.keyword)
+    queryExpansionJson = JSON.stringify(exp)
+    await prisma.monitor.update({
+      where: { id: monitorId },
+      data: { queryExpansion: queryExpansionJson },
+    })
+  }
+
   for (const item of itemsToProcess) {
-    let aiResult = { isReal: true, relevance: 1, summary: '', reason: '' }
+    let aiResult: AIVerifyResult = {
+      isReal: true,
+      relevance: 1,
+      summary: '',
+      reason: '',
+      entityMatch: 'primary',
+      evidence: '',
+    }
     let aiFailed = false
     let aiFiltered = false
 
     if (isAccount) {
-      // 账号模式：跳过 AI 验证，直接视为相关（只要是该账号发的就推送）
-      aiResult = { isReal: true, relevance: 1, summary: item.content.slice(0, 100), reason: '' }
+      aiResult = {
+        isReal: true,
+        relevance: 1,
+        summary: item.content.slice(0, 100),
+        reason: '',
+        entityMatch: 'primary',
+        evidence: '',
+      }
     } else {
-      // 普通模式：AI 验证相关性
       await new Promise(r => setTimeout(r, 5000))
-      aiResult = await verifyContent(monitor.keyword, item.title, item.content)
+      aiResult = await verifyContent(monitor.keyword, item.title, item.content, {
+        queryExpansionJson,
+      })
       aiFailed = aiResult.relevance === 0 && !aiResult.isReal && aiResult.reason === 'AI 分析失败'
-      aiFiltered = !aiFailed && !aiResult.isReal && aiResult.relevance < 0.5
+      // 非失败：内容不够真实或相关度低于监控阈值 → 不推送（仍写入 Finding）
+      aiFiltered = !aiFailed && (!aiResult.isReal || aiResult.relevance < minRel)
     }
+
+    const entityLabel: Record<string, string> = {
+      primary: '主命中（监控对象）',
+      related_product: '同品牌/生态但非目标对象',
+      tangential: '弱相关',
+      unrelated: '不相关',
+    }
+    const reasonBlock = isAccount
+      ? '账号模式：跳过 AI 相关性审核'
+      : [
+          !aiFailed ? `匹配层级：${entityLabel[aiResult.entityMatch] ?? aiResult.entityMatch}` : '',
+          aiResult.reason,
+          aiResult.evidence ? `依据：${aiResult.evidence}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
 
     await prisma.finding.create({
       data: {
@@ -71,14 +118,16 @@ export async function scanMonitor(monitorId: string): Promise<{ foundCount: numb
         aiScore: aiFailed ? -1 : aiResult.relevance,
         aiSummary: aiFailed
           ? `【待确认】${item.title.slice(0, 40)}`
-          : (aiResult.summary || aiResult.reason || item.title),
+          : (aiResult.summary || item.title),
+        aiReason: aiFailed ? 'AI 调用失败，请人工查看原文' : reasonBlock,
         isNotified: true,
       },
     })
 
-    // AI 明确判断为不相关：不通知（账号模式不会触发此逻辑）
     if (aiFiltered) {
-      console.log(`[Scheduler] Filtered (relevance=${aiResult.relevance.toFixed(2)}): ${item.title}`)
+      console.log(
+        `[Scheduler] Filtered (rel=${aiResult.relevance.toFixed(2)} min=${minRel.toFixed(2)} real=${aiResult.isReal} entity=${aiResult.entityMatch}): ${item.title}`
+      )
       continue
     }
 

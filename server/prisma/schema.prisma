@@ -14,6 +14,10 @@ model Monitor {
   description String?
   isActive    Boolean   @default(true)
   intervalMin Int       @default(15)
+  /// Query expansion（JSON）：phrases + modelNotes，用于本地预筛与 AI 提示
+  queryExpansion String?
+  /// 低于此相关度(0-1)不推送通知；默认 0.65
+  minRelevance   Float   @default(0.65)
   lastChecked DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -37,6 +41,8 @@ model Finding {
   views       Int?
   aiScore     Float    @default(0)
   aiSummary   String   @default("")
+  /// 判定理由 / 证据说明（与摘要分离）
+  aiReason    String   @default("")
   isNotified  Boolean  @default(false)
   createdAt   DateTime @default(now())
 }

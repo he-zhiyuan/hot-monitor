@@ -10,7 +10,9 @@
     "test": "tsx src/test-sort.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "eval:verify": "tsx src/eval-verify.ts",
+    "eval:verify:ai": "tsx src/eval-verify.ts --ai"
   },
   "dependencies": {
     "@openrouter/sdk": "^0.12.35",

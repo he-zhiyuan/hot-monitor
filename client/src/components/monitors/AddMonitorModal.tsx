@@ -13,6 +13,7 @@ export default function AddMonitorModal({ open, onClose, onSuccess }: Props) {
   const [keyword, setKeyword] = useState('')
   const [description, setDescription] = useState('')
   const [interval, setInterval] = useState(15)
+  const [minRelevance, setMinRelevance] = useState<string>('') // 空=后端默认 0.65
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,10 +23,13 @@ export default function AddMonitorModal({ open, onClose, onSuccess }: Props) {
     setLoading(true)
     setError('')
     try {
-      await api.post('/monitors', { keyword, description, intervalMin: interval })
+      const body: Record<string, unknown> = { keyword, description, intervalMin: interval }
+      if (minRelevance !== '') body.minRelevance = Number(minRelevance)
+      await api.post('/monitors', body)
       setKeyword('')
       setDescription('')
       setInterval(15)
+      setMinRelevance('')
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -59,6 +63,22 @@ export default function AddMonitorModal({ open, onClose, onSuccess }: Props) {
             className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 placeholder-slate-700 border outline-none focus:border-cyan-500/40 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.08)] transition-all"
             style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.09)' }}
           />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1.5">最低相关度才推送（0.35–0.95）</label>
+          <select
+            value={minRelevance}
+            onChange={e => setMinRelevance(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-slate-200 border outline-none focus:border-cyan-500/40 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.08)] transition-all"
+            style={{ background: 'rgba(8,12,22,0.98)', borderColor: 'rgba(255,255,255,0.09)' }}
+          >
+            <option value="">默认（推荐 0.65）</option>
+            <option value="0.55">0.55 较宽</option>
+            <option value="0.65">0.65 平衡</option>
+            <option value="0.72">0.72 较严</option>
+            <option value="0.8">0.80 很严</option>
+          </select>
+          <p className="text-[10px] text-slate-600 mt-1">低于该值的发现会入库但不会推送通知。</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-400 mb-1.5">检测频率（分钟）</label>

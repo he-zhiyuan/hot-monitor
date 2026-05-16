@@ -1,0 +1,28 @@
+[
+  {
+    "id": "sonnet-openclaw-no-version",
+    "keyword": "Claude Sonnet 4.6",
+    "title": "OpenClaw 完全指南",
+    "content": "本文介绍 OpenClaw 的安装与配置，与终端自动化相关。未涉及 Anthropic 模型版本。",
+    "queryExpansion": "{\"phrases\":[\"claude sonnet 4.6\",\"sonnet 4.6\",\"anthropic claude sonnet 4.6\"],\"modelNotes\":\"必须明确讨论 Sonnet 4.6 或等价版本。\"}",
+    "expectLocalPass": false,
+    "expectMaxRelevance": 0.35,
+    "expectEntityNotPrimary": true
+  },
+  {
+    "id": "sonnet-exact-phrase",
+    "keyword": "Claude Sonnet 4.6",
+    "title": "Anthropic 发布 Claude Sonnet 4.6",
+    "content": "新模型在编码与推理上提升，API 已开放。",
+    "queryExpansion": "{\"phrases\":[\"claude sonnet 4.6\",\"sonnet 4.6\"],\"modelNotes\":\"正文需指向 Sonnet 4.6 发布或能力。\"}",
+    "expectLocalPass": true
+  },
+  {
+    "id": "multi-token-generic-claude-only",
+    "keyword": "Claude Sonnet 4.6",
+    "title": "Claude 使用技巧十则",
+    "content": "Claude 在写作上很好用，本文不讨论具体型号与产品线。",
+    "queryExpansion": null,
+    "expectLocalPass": false
+  }
+]
