@@ -1,0 +1,12 @@
+# Known creators — used by scripts/search_creator.py
+# Add entries when Bilibili API is blocked or for faster "today's posts" lookup.
+
+程序员鱼皮:
+  aliases: [鱼皮, yupi, liyupi]
+  ai_nav_user: https://ai.codefather.cn/user/1601072287388278786
+  codefather_user: https://www.codefather.cn/user/1601072287388278786
+  bilibili_name: 程序员鱼皮
+
+宝玉:
+  aliases: [baoyu, 宝玉xp]
+  bilibili_name: 宝玉

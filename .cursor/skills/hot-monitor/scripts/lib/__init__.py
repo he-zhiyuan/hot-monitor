@@ -1,0 +1,1 @@
+# HotMonitor skill source adapters
