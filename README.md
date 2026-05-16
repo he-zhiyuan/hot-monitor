@@ -6,12 +6,12 @@
 
 | 功能 | 描述 |
 |------|------|
-| 关键词监控 | 添加关键词，AI 验证真实性后推送通知 |
+| 关键词监控 | Query expansion + 分层 AI 相关性审核，低于阈值入库不推送 |
 | 账号监控 | 关键词以 `@` 开头时直接拉取该账号（B站 UP主）最新内容 |
 | 热点发现 | 自动聚合多源热点，AI 打热度分（0-10） |
 | 通知中心 | 站内通知历史，支持 Socket.IO 实时推送 + 邮件 |
 | 10 大数据源 | 国际 + 国内全覆盖，无需 API Key 即可运行 |
-| AI 过滤 | 基于 EasyRouter/OpenRouter，自动过滤营销/噪音/过时内容 |
+| AI 过滤 | EasyRouter/OpenRouter：真实性 + 实体匹配 + 可配置相关度阈值 |
 
 ## 数据源
 
@@ -62,6 +62,9 @@ SMTP_PORT=587
 SMTP_USER=your@qq.com
 SMTP_PASS=your-authorization-code
 NOTIFY_EMAIL_TO=your@qq.com
+
+# 可选：全局默认推送相关度下限（0-1，默认 0.65；单条监控可覆盖）
+# MONITOR_MIN_RELEVANCE=0.65
 ```
 
 ### 2. 安装依赖
@@ -119,8 +122,11 @@ hot-monitor/
 │   └── index.ts              # 聚合入口（10源并行 + 时间过滤 + URL去重）
 ├── server/src/lib/
 │   ├── scheduler.ts          # 定时任务（监控15min，热点1h）
-│   ├── openrouter.ts         # AI 验证 & 热度评分
+│   ├── openrouter.ts         # AI：query expansion、verify、热度评分
+│   ├── keyword-match.ts      # 扩展短语本地预筛
+│   ├── monitor-thresholds.ts # minRelevance 默认值
 │   └── email.ts              # 邮件通知
+├── server/src/eval-verify.ts   # 相关性审核回归（本地 / --ai）
 ├── server/src/test-sources.ts  # 数据源可用性测试脚本
 └── client/src/               # React 前端（深色玻璃拟态 UI）
 ```
@@ -136,4 +142,8 @@ npm run build        # 构建前端生产包
 # 测试所有数据源是否正常（在 server/ 目录下运行）
 npx tsx src/test-sources.ts "Claude"
 npx tsx src/test-sources.ts "大模型"
+
+# 相关性审核回归（在 server/ 目录下运行）
+npm run eval:verify        # 仅本地规则，不消耗 API
+npm run eval:verify:ai     # 含真实 AI 调用，需配置 Key
 ```

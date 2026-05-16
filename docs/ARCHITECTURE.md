@@ -1,7 +1,7 @@
 # HotMonitor - 技术架构文档
 
-**版本**：v1.2  
-**更新**：2026-05-14
+**版本**：v1.3  
+**更新**：2026-05-16
 
 ---
 
@@ -160,14 +160,16 @@ hot-monitor/
 ├── server/
 │   ├── src/
 │   │   ├── routes/
-│   │   │   ├── monitors.ts       # GET/POST/PUT/DELETE /api/monitors
+│   │   │   ├── monitors.ts       # CRUD + scan + refresh-expansion
 │   │   │   ├── hotspots.ts       # GET /api/hotspots, POST /api/hotspots/refresh
 │   │   │   ├── notifications.ts  # GET/PATCH /api/notifications
 │   │   │   ├── scan.ts           # POST /api/scan (手动触发扫描)
 │   │   │   └── settings.ts       # GET/PUT /api/settings
 │   │   ├── lib/
 │   │   │   ├── prisma.ts
-│   │   │   ├── openrouter.ts     # AI 客户端（EasyRouter/OpenRouter）
+│   │   │   ├── openrouter.ts     # AI：expansion / verify / 热度评分
+│   │   │   ├── keyword-match.ts  # 扩展短语本地预筛
+│   │   │   ├── monitor-thresholds.ts
 │   │   │   ├── scheduler.ts      # node-cron 调度器
 │   │   │   ├── email.ts          # Nodemailer 邮件发送
 │   │   │   ├── socket.ts         # Socket.IO 实时推送
@@ -184,6 +186,8 @@ hot-monitor/
 │   │   │       ├── bilibili.ts   # B站公开 API（含 UP主 账号模式）
 │   │   │       └── technews.ts   # 36氪 + 少数派 RSS
 │   │   ├── test-sources.ts       # 数据源可用性测试脚本
+│   │   ├── eval-verify.ts        # 相关性审核回归
+│   │   ├── eval/verify-fixtures.json
 │   │   └── index.ts              # Express 应用入口
 │   ├── prisma/
 │   │   ├── schema.prisma
@@ -229,7 +233,9 @@ model Monitor {
   keyword     String                        // 支持 @ 前缀的账号模式
   description String?
   isActive    Boolean  @default(true)
-  interval    Int      @default(15)
+  intervalMin    Int      @default(15)
+  queryExpansion String?  // JSON: { phrases, modelNotes }
+  minRelevance   Float    @default(0.65)
   lastChecked DateTime?
   createdAt   DateTime @default(now())
   findings    Finding[]
@@ -247,7 +253,8 @@ model Finding {
   author      String?
   publishedAt DateTime?
   aiScore     Float                         // 0-1（-1 表示 AI 调用失败）
-  aiSummary   String   @db.Text
+  aiSummary   String   @db.Text            // 与监控词关系的一句话摘要
+  aiReason    String   @db.Text            // 匹配层级 + 理由 + evidence
   isNotified  Boolean  @default(false)
   createdAt   DateTime @default(now())
 }
@@ -304,11 +311,14 @@ model Setting {
          - 普通模式：10个源并行搜索关键词
       ② 全局时间过滤：丢弃 publishedAt 超过 48h 的条目
       ③ 过滤已处理 URL（对比数据库）
-      ④ 调用 AI 验证内容真实性（每次调用前等待5s防限流）
-         - 返回: { isReal: bool, relevance: float, summary: string }
-      ⑤ relevance > 0.5 → 保存 Finding → 创建 Notification
-      ⑥ 防重复通知：同一 URL 24h 内只推送一次
-      ⑦ 发送 Socket.IO 实时推送 + 邮件通知
+      ④ 若无 queryExpansion → expandMonitorKeyword 写回 Monitor
+      ⑤ 本地预筛 localRelevanceMatch（扩展短语 + 多 token 规则）
+      ⑥ AI verifyContent（每次调用前等待 5s 防限流）
+         - 返回: { isReal, relevance, entityMatch, evidence, summary, reason }
+      ⑦ 写入 Finding（含 aiSummary / aiReason）
+      ⑧ isReal && relevance >= minRelevance → Notification；否则仅入库
+      ⑨ 防重复通知：同一 URL 24h 内只推送一次
+      ⑩ Socket.IO + 邮件（未因低相关度过滤且非 AI 失败）
   → 更新 Monitor.lastChecked
 ```
 
@@ -371,18 +381,33 @@ API 层（twitterapi.io 查询参数）：
   - 综合互动分 = likes + retweets×2 < 5 的丢弃
 ```
 
-### 5.6 AI 提示词设计
+### 5.6 Query Expansion（监控词扩展）
 
-**关键词验证 Prompt**：
 ```
-你是一个新闻真实性分析器。给定以下内容，判断：
-1. 这是否是关于 "{keyword}" 的真实新闻/发布/更新（而非营销、转载、猜测）？
-2. 与关键词的相关度（0-1）
-3. 用一句话总结核心信息
+触发：POST /api/monitors（创建）、PATCH（改关键词）、首次 scan（补全）、POST refresh-expansion
 
-内容：{title}\n{content}
+expandMonitorKeyword(keyword) →
+  { phrases: string[], modelNotes?: string }  // 存入 Monitor.queryExpansion
 
-返回 JSON：{"isReal": bool, "relevance": float, "summary": "..."}
+用途：
+  - keyword-match.ts：本地预筛，优先命中较长、较具体的短语
+  - verifyContent：将 modelNotes / phrases 注入 Prompt，约束 primary 与监控对象一致
+```
+
+### 5.7 AI 提示词设计
+
+**Query Expansion Prompt**（摘要）：
+```
+为监控词生成 6–10 条命中短语（从具体到一般）+ modelNotes；
+禁止单独输出过宽泛词（如仅 "claude"）作为唯一短条目。
+```
+
+**关键词验证 Prompt**（摘要）：
+```
+判断 isReal、entityMatch（primary|related_product|tangential|unrelated）、
+relevance（与 entityMatch 上限一致）、evidence（原文摘录）、
+summary（须点明与监控词关系）、reason。
+后处理：按 entityMatch 封顶 relevance；evidence 须能在正文中匹配。
 ```
 
 **热度评分 Prompt**：
@@ -428,6 +453,9 @@ PORT=3001
 
 # 前端地址（用于 CORS）
 CLIENT_URL="http://localhost:5173"
+
+# 全局默认推送相关度下限（0-1，单条 Monitor.minRelevance 可覆盖）
+# MONITOR_MIN_RELEVANCE=0.65
 ```
 
 ---
@@ -478,6 +506,22 @@ npx tsx src/test-sources.ts "@宝玉"     # 测试账号模式
 
 输出内容：每个源的返回条数、响应时间、最新内容时间、前3条标题预览、失败原因。
 
+### 相关性审核回归
+
+```bash
+cd server
+npm run eval:verify       # 本地规则，不调用 API
+npm run eval:verify:ai    # 含 verifyContent，需 EASYROUTER 或 OPENROUTER Key
+```
+
+用例：`src/eval/verify-fixtures.json`（如 OpenClaw 文但监控 Sonnet 4.6 应本地不通过）。
+
+### 监控 API 补充
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/monitors/:id/refresh-expansion` | 仅重新生成 queryExpansion |
+
 ---
 
 ## 九、开发里程碑
@@ -493,4 +537,5 @@ npx tsx src/test-sources.ts "@宝玉"     # 测试账号模式
 | Phase 7 | 多源扩展（Reddit + Dev.to + Google News）+ Twitter 质量过滤 | ✅ 完成 |
 | Phase 8 | 国内源扩展（百度 + B站 + 36氪 + 少数派）+ 账号监控模式 | ✅ 完成 |
 | Phase 9 | 全局时间新鲜度过滤 + 超时优化 + 数据源测试工具 | ✅ 完成 |
-| Phase 10 | Agent Skills 封装 | 待定 |
+| Phase 10 | Query expansion + 分层相关性审核 + eval 回归 + 推送阈值 | ✅ 完成 |
+| Phase 11 | Agent Skills 封装 | 待定 |
